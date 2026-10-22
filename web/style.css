@@ -1156,3 +1156,38 @@ body {
 .log-entry .time { color: #64748b; min-width: 45px; }
 .log-entry .level { font-weight: 600; min-width: 55px; color: var(--text-muted); }
 .log-entry .msg { color: #cbd5e1; }
+
+/* Dynamic Animations for Truck Breakdown & Peer Handoff */
+@keyframes stallPulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.35); opacity: 0.25; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+@keyframes peerPulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 0.3; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+@keyframes handoffFlow {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -20; }
+}
+
+.pulse-halo-stall {
+  animation: stallPulse 1.2s infinite ease-in-out;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.pulse-halo-peer {
+  animation: peerPulse 1.4s infinite ease-in-out;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.handoff-beam {
+  animation: handoffFlow 0.8s linear infinite;
+}
+
