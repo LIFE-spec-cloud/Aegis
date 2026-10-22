@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KisanSetu (MandiFlow) - Multi-Agent Logistics Simulation</title>
+  <meta name="description" content="KisanSetu (MandiFlow) - Autonomous Multi-Agent Planning, Coordination, 2PC Commitment, and Fault Recovery System for Perishable Produce Logistics.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header / Navigation Bar -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#10b981"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">KisanSetu <span class="brand-sub">MandiFlow</span></h1>
+        <p class="brand-tagline">Autonomous MAPCRS Multi-Agent Perishable Logistics Engine</p>
+      </div>
+    </div>
+
+    <!-- Sim Clock & Control Toolbar -->
+    <div class="sim-controls">
+      <div class="sim-clock-card">
+        <span class="clock-label">SIM CLOCK</span>
+        <span class="clock-time" id="simTimeDisplay">02h : 00m</span>
+        <span class="clock-ticks" id="simTickDisplay">T+120m (Seed 42)</span>
+      </div>
+
+      <div class="control-btn-group">
+        <button id="btnPlayPause" class="ctrl-btn ctrl-play" title="Play / Pause Simulation">
+          <svg id="playIcon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <polygon points="5,3 19,12 5,21"/>
+          </svg>
+          <span id="playPauseText">Resume</span>
+        </button>
+
+        <button id="btnStep" class="ctrl-btn" title="Step +15 minutes">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <polygon points="4,4 14,12 4,20"/>
+            <rect x="16" y="4" width="3" height="16"/>
+          </svg>
+          <span>Step</span>
+        </button>
+
+        <button id="btnReset" class="ctrl-btn" title="Reset Simulation">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M12 4V1L8 5l4 4V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/>
+          </svg>
+          <span>Reset</span>
+        </button>
+      </div>
+
+      <!-- Speed & Audio Toggle -->
+      <div class="speed-selector">
+        <button class="speed-btn active" data-speed="1">1x</button>
+        <button class="speed-btn" data-speed="2">2x</button>
+        <button class="speed-btn" data-speed="5">5x</button>
+      </div>
+
+      <button id="btnAudioToggle" class="audio-toggle-btn active" title="Toggle Hinglish Spoken Speech Synthesizer">
+        <svg id="audioIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+        <span>Audio Voice</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Grid Dashboard -->
+  <main class="dashboard-grid">
+
+    <!-- COLUMN 1: Accessible Vernacular Voice Kiosk -->
+    <section class="card kiosk-card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <span class="badge badge-kiosk">PHASE B3</span>
+          <h2>Vernacular Voice Kiosk</h2>
+        </div>
+        <span class="status-indicator live">Kiosk Active</span>
+      </div>
+
+      <div class="kiosk-terminal">
+        <div class="mic-container">
+          <div class="mic-rings" id="micRings"></div>
+          <button id="btnMicTrigger" class="mic-button" title="Speak or trigger voice input">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </button>
+          <span class="mic-status-label" id="micStatusLabel">Tap to speak or select phrase</span>
+        </div>
+
+        <!-- Vernacular Speech Preset Chips -->
+        <div class="chips-container">
+          <span class="chips-label">Sample Farmer Utterances:</span>
+          <button class="voice-chip active" data-phrase="Bhaiya 25 quintal tamatar bechna hai Azadpur mandi tak">
+            🗣️ "25 quintal tamatar Azadpur mandi"
+          </button>
+          <button class="voice-chip" data-phrase="40 quintal pyaaz Ghazipur bhejo turant">
+            🗣️ "40 quintal pyaaz Ghazipur bhejo"
+          </button>
+          <button class="voice-chip" data-phrase="60 qtl aalu Mother Dairy Sonipat plant bhejna hai">
+            🗣️ "60 qtl aalu Sonipat factory"
+          </button>
+        </div>
+
+        <!-- Live Parsed Utterance Box -->
+        <div class="parsed-box">
+          <div class="parsed-row">
+            <span class="parsed-label">Raw Voice Input:</span>
+            <span class="parsed-val" id="rawUtteranceText">"Bhaiya 25 quintal tamatar bechna hai Azadpur mandi tak"</span>
+          </div>
+          <div class="parsed-grid">
+            <div>
+              <span class="parsed-label">Commodity:</span>
+              <strong id="parsedCommodity">Tamatar (Tomato)</strong>
+            </div>
+            <div>
+              <span class="parsed-label">Quantity:</span>
+              <strong id="parsedQuantity">25.0 Quintals</strong>
+            </div>
+            <div>
+              <span class="parsed-label">Destination:</span>
+              <strong id="parsedDestination">Azadpur Mandi</strong>
+            </div>
+            <div>
+              <span class="parsed-label">Confidence:</span>
+              <span class="badge badge-confidence" id="parsedConfidence">95% High</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Produce Quality Status Card -->
+        <div class="status-card-widget grade-a" id="produceStatusCard">
+          <div class="status-card-header">
+            <div class="crop-info">
+              <span class="crop-icon">🍅</span>
+              <div>
+                <h4 id="cardCropName">Tomato (Grade A)</h4>
+                <span class="grade-tag" id="cardGradeTag">Taaza / Fresh (ताज़ा)</span>
+              </div>
+            </div>
+            <div class="quality-score-circle">
+              <span class="q-val" id="cardQualityScore">0.94</span>
+              <span class="q-lbl">Quality Q</span>
+            </div>
+          </div>
+          <p class="status-recommendation" id="cardRecommendation">
+            Bhaav sabse behtar milega. Mandi me bechein (Top Price: ₹2,200/qtl).
+          </p>
+          <div class="card-action-bar">
+            <button id="btnConfirm2PC" class="btn-primary-action">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Ha, Booking Pakki Karein (Confirm 2PC)
+            </button>
+            <button id="btnCancel2PC" class="btn-secondary-action">Radd Karein (Cancel)</button>
+          </div>
+        </div>
+
+        <!-- DTMF Telephone Numpad -->
+        <details class="dtmf-drawer">
+          <summary>Simulate Phone DTMF Audio Keypad (IVR)</summary>
+          <div class="numpad-grid">
+            <button class="numpad-btn" data-key="1">1<span>🍅 Tomato</span></button>
+            <button class="numpad-btn" data-key="2">2<span>🧅 Onion</span></button>
+            <button class="numpad-btn" data-key="3">3<span>🥔 Potato</span></button>
+            <button class="numpad-btn" data-key="4">4<span>Azadpur</span></button>
+            <button class="numpad-btn" data-key="5">5<span>Ghazipur</span></button>
+            <button class="numpad-btn" data-key="6">6<span>Sonipat</span></button>
+            <button class="numpad-btn" data-key="7">7<span>25 qtl</span></button>
+            <button class="numpad-btn" data-key="8">8<span>50 qtl</span></button>
+            <button class="numpad-btn" data-key="9">9<span>Confirm</span></button>
+            <button class="numpad-btn" data-key="*">*<span>Repeat</span></button>
+            <button class="numpad-btn" data-key="0">0<span>Help</span></button>
+            <button class="numpad-btn" data-key="#">#<span>Submit</span></button>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- COLUMN 2: Topological Road Graph & Interactive Map -->
+    <section class="card map-card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <span class="badge badge-map">TOPOLOGICAL GRAPH</span>
+          <h2>Delhi-NCR Perishable Corridor Network</h2>
+        </div>
+        <div class="map-legend">
+          <span class="legend-item"><span class="dot farm"></span> Farm</span>
+          <span class="legend-item"><span class="dot mandi"></span> Mandi</span>
+          <span class="legend-item"><span class="dot plant"></span> Processor</span>
+          <span class="legend-item"><span class="dot truck"></span> Truck</span>
+        </div>
+      </div>
+
+      <div class="map-canvas-container">
+        <svg id="roadMapSvg" class="road-map-svg" viewBox="0 0 760 480">
+          <!-- Background Grid Pattern -->
+          <defs>
+            <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            </pattern>
+            <linearGradient id="roadGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.7"/>
+              <stop offset="100%" stop-color="#10b981" stop-opacity="0.7"/>
+            </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+            </filter>
+          </defs>
+
+          <rect width="100%" height="100%" fill="url(#gridPattern)" />
+
+          <!-- Network Road Edges -->
+          <g id="roadEdges">
+            <!-- Road segments will be drawn here -->
+          </g>
+
+          <!-- Network Nodes -->
+          <g id="roadNodes">
+            <!-- Hubs and Mandis will be drawn here -->
+          </g>
+
+          <!-- Animated Moving Vehicles -->
+          <g id="roadTrucks">
+            <!-- Active trucks with pulsing halos -->
+          </g>
+        </svg>
+
+        <!-- Transit Status Lane Panel (Overlay) -->
+        <div class="truck-lanes-panel">
+          <div class="lane-item" id="truckLane1">
+            <div class="lane-header">
+              <div class="truck-badge">
+                <span class="truck-icon">🚚</span>
+                <strong>Truck_DL01 (Reefer)</strong>
+              </div>
+              <span class="truck-state-badge enroute" id="truck1StateBadge">EN_ROUTE</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="truck1ProgressBar" style="width: 45%;"></div>
+            </div>
+            <div class="lane-meta">
+              <span>Path: <b id="truck1RouteText">Farm_Sonipat ➔ Azadpur</b></span>
+              <span>ETA: <b id="truck1Eta">180m</b></span>
+              <span>Quality: <b class="quality-text" id="truck1QualityText">0.910 (Grade A)</b></span>
+            </div>
+          </div>
+
+          <div class="lane-item" id="truckLane2">
+            <div class="lane-header">
+              <div class="truck-badge">
+                <span class="truck-icon">🚛</span>
+                <strong>Truck_HR02 (Ambient)</strong>
+              </div>
+              <span class="truck-state-badge idle" id="truck2StateBadge">IDLE (STANDBY)</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="truck2ProgressBar" style="width: 0%;"></div>
+            </div>
+            <div class="lane-meta">
+              <span>Standby Node: <b>NH44_Junction</b></span>
+              <span>Capacity: <b>50.0 qtl</b></span>
+              <span>Status: <b id="truck2StandbyText">Ready for Peer Handoff</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLUMN 3: Real-Time Fault Injection & 2PC Invariants -->
+    <section class="card controls-card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <span class="badge badge-control">PHASE B1 & B2</span>
+          <h2>Fault Injection & 2PC Auditor</h2>
+        </div>
+        <span class="status-indicator active" id="invariantLed">0 Leaks</span>
+      </div>
+
+      <!-- Zero-Leak Invariant Monitor Panel -->
+      <div class="invariant-monitor-box">
+        <div class="invariant-title-row">
+          <h4>Continuous Zero-Leak Invariant</h4>
+          <span class="badge badge-safe" id="invariantBadge">Passed (0 Leaks)</span>
+        </div>
+        <div class="invariant-stat-row">
+          <div class="inv-stat">
+            <span class="inv-num" id="invTruckLocks">1</span>
+            <span class="inv-desc">Truck Lock</span>
+          </div>
+          <div class="inv-stat">
+            <span class="inv-num" id="invGateSlots">1</span>
+            <span class="inv-desc">Gate Slot</span>
+          </div>
+          <div class="inv-stat">
+            <span class="inv-num" id="invEscrowHolds">1</span>
+            <span class="inv-desc">Escrow Hold</span>
+          </div>
+          <div class="inv-stat">
+            <span class="inv-num" id="invActiveContracts">1</span>
+            <span class="inv-desc">Active 2PC</span>
+          </div>
+        </div>
+        <p class="invariant-formula">
+          Assertion: ∑(Port Locks) = ∑(Non-Terminal Contracts) &amp; Locks(Terminal) = 0
+        </p>
+      </div>
+
+      <!-- Interactive Fault Injection Buttons -->
+      <div class="fault-injection-deck">
+        <h3 class="section-heading">Deterministic Benchmark Faults (Seed 42)</h3>
+
+        <div class="fault-button-card">
+          <div class="fault-info">
+            <div class="fault-header-line">
+              <span class="fault-tag tag-glut">FAULT 1: MANDI GLUT</span>
+              <span class="fault-time">T+130m</span>
+            </div>
+            <p>Azadpur arrivals surge drops quote ₹2,200 ➔ ₹1,320. Tests <strong>DynamicReroutingRecovery</strong> with ₹5,000 hysteresis threshold.</p>
+          </div>
+          <button id="btnInjectGlut" class="fault-btn btn-glut">
+            🚨 Inject Mandi Glut
+          </button>
+        </div>
+
+        <div class="fault-button-card">
+          <div class="fault-info">
+            <div class="fault-header-line">
+              <span class="fault-tag tag-stall">FAULT 2: ENGINE STALL</span>
+              <span class="fault-time">T+140m</span>
+            </div>
+            <p>Truck_DL01 suffers mechanical breakdown at NH-44. Tests <strong>PeerHandoffRecovery</strong> with atomic lock rebind to Truck_HR02.</p>
+          </div>
+          <button id="btnInjectStall" class="fault-btn btn-stall">
+            ⚠️ Inject Truck Breakdown
+          </button>
+        </div>
+
+        <div class="fault-button-card">
+          <div class="fault-info">
+            <div class="fault-header-line">
+              <span class="fault-tag tag-block">FAULT 3: HIGHWAY JAM</span>
+              <span class="fault-time">T+150m</span>
+            </div>
+            <p>Major blockage extends trip to 15h; quality projected to breach 0.60 mandi floor. Tests <strong>DistressAuctionRecovery</strong>.</p>
+          </div>
+          <button id="btnInjectBlockage" class="fault-btn btn-block">
+            🛑 Inject Highway Jam
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Recovery Outcome Card -->
+      <div class="recovery-outcome-box" id="recoveryOutcomeBox">
+        <div class="rec-header">
+          <span class="rec-strategy" id="recStrategyName">Standing By</span>
+          <span class="rec-status" id="recStatusBadge">Ready</span>
+        </div>
+        <p class="rec-summary" id="recActionSummary">
+          Click any fault injection button above to test real-time failure detection, 2PC compensation, and strategy recovery.
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Analytics & Spoken Hinglish Audio Feed -->
+  <section class="bottom-section">
+    <!-- Spoken Audio Announcement Panel -->
+    <div class="audio-feed-card">
+      <div class="audio-card-header">
+        <div class="speaker-wave-icon" id="speakerWave">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <h3>Live Audio Speaker Synthesizer (Hinglish Broadcast)</h3>
+      </div>
+      <div class="audio-quote-box">
+        <p id="audioSpeechSubtitle">"KisanSetu Multi-Agent System taiyaar hai. Kripya apna fasal aadesh darj karein."</p>
+        <span class="audio-lang-tag">Natural Hindi/Hinglish Voice · Web Speech API</span>
+      </div>
+    </div>
+
+    <!-- Comparative Baseline Analytics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <span class="metric-lbl">Total Net Margin (INR)</span>
+        <div class="metric-val text-green" id="metricMargin">₹5,62,850</div>
+        <span class="metric-comp text-green">+18.6% vs Static Baseline</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-lbl">Produce Spoilage Rate</span>
+        <div class="metric-val text-cyan" id="metricSpoilage">0.00%</div>
+        <span class="metric-comp text-cyan">-20.0% Spoilage Reduction</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-lbl">Distress Salvage Rate</span>
+        <div class="metric-val text-amber" id="metricSalvage">100.0%</div>
+        <span class="metric-comp text-amber">60.0 qtl salvaged via factory</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-lbl">Dispatched Events</span>
+        <div class="metric-val text-purple" id="metricEvents">19 Events</div>
+        <span class="metric-comp text-purple">Zero Circular Dependencies</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Structured Event Log Drawer -->
+  <footer class="event-log-drawer">
+    <div class="log-drawer-header">
+      <h4>Discrete Event Bus &amp; Audit Log</h4>
+      <button id="btnClearLog" class="btn-clear-log">Clear</button>
+    </div>
+    <div class="log-stream" id="eventLogStream">
+      <!-- Events injected here -->
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
