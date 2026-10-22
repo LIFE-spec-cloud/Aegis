@@ -60,7 +60,6 @@ void testVernacularVoiceParsing20PlusPhrases() {
 
     assert(cases.size() >= 20);
 
-    int testIdx = 1;
     for (const auto& tc : cases) {
         InputEvent event;
         event.type = InputEventType::VoiceText;
@@ -86,7 +85,7 @@ void testVernacularVoiceParsing20PlusPhrases() {
         if (tc.expectHighConfidence) {
             assert(result.confidence >= adapter.confidenceThreshold());
         }
-        testIdx++;
+
     }
 
     std::cout << "  [PASS] All 22 vernacular voice phrases parsed successfully." << std::endl;

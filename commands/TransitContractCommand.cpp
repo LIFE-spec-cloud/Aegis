@@ -68,7 +68,7 @@ CommandStatus TransitContractCommand::execute() {
         EventLog::instance().append(
             m_params.createdAt, EventLevel::WARNING, "COMMAND",
             "Prepare Step 1 failed: unable to lock truck " + m_params.transporterId.value);
-        abort();
+        static_cast<void>(abort());
         return CommandStatus::Failed;
     }
     m_truckLock = std::move(*truckRes);
@@ -90,7 +90,7 @@ CommandStatus TransitContractCommand::execute() {
         EventLog::instance().append(
             m_params.createdAt, EventLevel::WARNING, "COMMAND",
             "Prepare Step 2 failed: unable to reserve slot at " + m_params.mandiId.value);
-        abort();
+        static_cast<void>(abort());
         return CommandStatus::Failed;
     }
     m_slotReservation = std::move(*slotRes);
@@ -112,7 +112,7 @@ CommandStatus TransitContractCommand::execute() {
         EventLog::instance().append(
             m_params.createdAt, EventLevel::WARNING, "COMMAND",
             "Prepare Step 3 failed: unable to hold escrow deposit from " + m_params.farmerId.value);
-        abort();
+        static_cast<void>(abort());
         return CommandStatus::Failed;
     }
     m_escrow = std::move(*escrowRes);

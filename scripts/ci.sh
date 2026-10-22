@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -e -u -o pipefail
 
 echo "=========================================================="
 echo " KisanSetu Continuous Integration (CI) Script"

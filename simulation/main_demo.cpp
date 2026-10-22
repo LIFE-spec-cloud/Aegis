@@ -122,7 +122,7 @@ int main(int argc, char* argv[]) {
 
     TransitContractCommand contract(params, truckPort, slotPort, escrowPort);
     assert(contract.execute() == CommandStatus::Success);
-    std::cout << "Contract " << contract.contractId().value 
+    std::cout << "Contract " << contract.contractId().value() 
               << " COMMITTED (Truck locked, Azadpur slot reserved, Escrow held)." << std::endl;
 
     std::vector<const TransitContractCommand*> activeContracts = {&contract};
