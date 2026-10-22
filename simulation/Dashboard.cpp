@@ -47,12 +47,12 @@ void Dashboard::display() const {
 
 std::string Dashboard::renderHeader() const {
     std::ostringstream oss;
-    uint64_t totalHours = m_simTime.ticks / 60;
-    uint64_t mins = m_simTime.ticks % 60;
+    uint64_t totalHours = static_cast<uint64_t>(m_simTime.ticks()) / 60;
+    uint64_t mins = static_cast<uint64_t>(m_simTime.ticks()) % 60;
 
     oss << "================================================================================\n"
         << "  KISANSETU (MANDIFLOW) DISCRETE-EVENT LOGISTICS SIMULATION\n"
-        << "  Sim Clock: [" << std::setfill('0') << std::setw(5) << m_simTime.ticks << "m | "
+        << "  Sim Clock: [" << std::setfill('0') << std::setw(5) << m_simTime.ticks() << "m | "
         << std::setw(2) << totalHours << "h:" << std::setw(2) << mins << "m] "
         << "| Seed: " << m_seed << " | Mode: " 
         << (m_mode == DashboardMode::Plain ? "PLAIN" : (m_mode == DashboardMode::NoColor ? "NO-COLOR" : "ANSI"))
@@ -92,7 +92,7 @@ std::string Dashboard::renderTruckLanes() const {
             << " [" << std::setw(8) << stateStr << "] "
             << bar << " " << std::right << std::setw(3) << static_cast<int>(t.progressPercent) << "% "
             << "| Route: " << std::left << std::setw(18) << t.route
-            << "| ETA: " << std::setw(5) << t.eta.ticks << "m "
+            << "| ETA: " << std::setw(5) << t.eta.ticks() << "m "
             << "| " << t.cargoSummary << "\n";
     }
     return oss.str();

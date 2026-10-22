@@ -13,7 +13,7 @@ RecoveryResult DynamicReroutingRecovery::recover(
     RecoveryResult result;
     result.strategyName = "DynamicReroutingRecovery";
 
-    std::string cid = contract.contractId().value;
+    std::string cid = contract.contractId().str();
     uint32_t currentCount = m_rerouteCounts[cid];
 
     // Check bounded attempts

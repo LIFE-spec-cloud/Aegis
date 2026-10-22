@@ -12,7 +12,7 @@ RecoveryResult PeerHandoffRecovery::recover(
     RecoveryResult result;
     result.strategyName = "PeerHandoffRecovery";
 
-    std::string cid = contract.contractId().value;
+    std::string cid = contract.contractId().str();
     std::string failedTruck = contract.transporterId().value;
 
     EventLog::instance().append(
@@ -20,7 +20,7 @@ RecoveryResult PeerHandoffRecovery::recover(
         "Executing PeerHandoffRecovery for contract " + cid + " after breakdown of " + failedTruck);
 
     // 1. Search for closest idle peer truck with sufficient capacity
-    auto idleTrucks = context.findIdleTrucks("NH44_Junction", m_requiredCapacity);
+    auto idleTrucks = context.findIdleTrucks(std::string("NH44_Junction"), m_requiredCapacity);
 
     if (!idleTrucks.empty()) {
         const auto& peer = idleTrucks.front();

@@ -15,11 +15,11 @@ RecoveryResult DistressAuctionRecovery::recover(
 
     EventLog::instance().append(
         currentTime, EventLevel::INFO, "RECOVERY",
-        "Executing DistressAuctionRecovery for contract " + contract.contractId().value + 
+        "Executing DistressAuctionRecovery for contract " + contract.contractId().str() + 
         " within radius " + std::to_string(static_cast<int>(m_maxRadiusKm)) + " km");
 
     // 1. Find processors within configured radius
-    auto candidates = context.findProcessors("NH44_Stoppage", m_maxRadiusKm);
+    auto candidates = context.findProcessors(std::string("NH44_Stoppage"), m_maxRadiusKm);
     if (candidates.empty()) {
         result.success = false;
         result.actionSummary = "No processing plants found within " + std::to_string(m_maxRadiusKm) + " km.";

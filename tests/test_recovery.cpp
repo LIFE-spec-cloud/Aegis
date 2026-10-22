@@ -239,7 +239,7 @@ void testScenario2_MandiGlut_DynamicRerouting() {
     assert(result2.success);
     assert(result2.newDestinationOrPeer == AgentId("Ghazipur"));
     assert(cmd.mandiId() == AgentId("Ghazipur"));
-    assert(recovery.rerouteCount(cmd.contractId().value) == 2);
+    assert(recovery.rerouteCount(cmd.contractId().str()) == 2);
 
     // Attempt 3 must be REJECTED (max 2 reroutes reached)
     auto result3 = recovery.recover(cmd, context, alert, SimTime(300));

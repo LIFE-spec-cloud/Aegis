@@ -38,7 +38,7 @@ public:
         if (!handle.isValid()) return false;
         if (m_failRefunds) return false;
 
-        auto it = m_heldEscrows.find(handle.escrowId());
+        auto it = m_heldEscrows.find(handle.escrowIdStr());
         if (it != m_heldEscrows.end()) {
             if (refundAmount.paise > it->second.paise) {
                 return false; // Cannot refund more than held
@@ -62,7 +62,7 @@ public:
         if (!handle.isValid()) return false;
         if (m_failTransfers) return false;
 
-        auto it = m_heldEscrows.find(handle.escrowId());
+        auto it = m_heldEscrows.find(handle.escrowIdStr());
         if (it != m_heldEscrows.end()) {
             if (amount.paise > it->second.paise) {
                 return false;

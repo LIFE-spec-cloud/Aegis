@@ -35,7 +35,7 @@ public:
                 // Invariant 1: Terminal contracts must never own active resource handles
                 if (contract->hasTruckLock() || contract->hasSlot() || contract->hasEscrow()) {
                     std::ostringstream oss;
-                    oss << "Invariant Violation: Terminal contract " << contract->contractId().value
+                    oss << "Invariant Violation: Terminal contract " << contract->contractId().str()
                         << " still holds resources! (truckLock=" << contract->hasTruckLock()
                         << ", slot=" << contract->hasSlot()
                         << ", escrow=" << contract->hasEscrow() << ")";

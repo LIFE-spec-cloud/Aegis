@@ -13,14 +13,6 @@
 
 namespace agro {
 
-enum class ContractState {
-    CREATED,
-    PREPARING,
-    COMMITTED,
-    COMPLETED,
-    COMPENSATED,
-    ABORTED
-};
 
 struct TransitContractParams {
     ContractId contractId;

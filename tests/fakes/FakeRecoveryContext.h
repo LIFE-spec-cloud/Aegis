@@ -33,7 +33,7 @@ public:
         for (const auto& truck : m_trucks) {
             // In fake, if locationNode is "*" or matches truck location and capacity >= required
             if ((locationNode.empty() || locationNode == "*" || truck.currentNode == locationNode) &&
-                truck.capacity.value >= requiredCapacity.value) {
+                truck.capacity.value() >= requiredCapacity.value()) {
                 matches.push_back(truck);
             }
         }
@@ -79,10 +79,10 @@ public:
         const std::string& toNode) const override {
         
         RouteInfo info;
-        info.pathNodes = {fromNode, "Junction_1", toNode};
-        info.totalDistanceKm = 120.0;
-        info.estimatedDuration = SimTime::fromHours(2.5);
-        info.tollAndFuelCost = Money::fromRupees(1500);
+        info.path = {NodeId(fromNode), NodeId("Junction_1"), NodeId(toNode)};
+        info.distanceKm = 120.0;
+        info.estimatedTransitTime = SimTime::fromHours(2.5);
+        info.tollCost = Money::fromRupees(1500.0);
         return info;
     }
 

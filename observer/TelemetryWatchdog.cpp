@@ -35,8 +35,8 @@ void TelemetryWatchdog::processTruckTelemetry(const TelemetryEvent& event) {
     }
 
     // Anomaly Check 2: Missed Heartbeats
-    if (event.currentSimTime.ticks >= event.lastHeartbeatTime.ticks + m_maxHeartbeatLossTicks &&
-        event.lastHeartbeatTime.ticks > 0) {
+    if (event.currentSimTime.ticks() >= event.lastHeartbeatTime.ticks() + static_cast<int64_t>(m_maxHeartbeatLossTicks) &&
+        event.lastHeartbeatTime.ticks() > 0) {
         AnomalyAlert alert;
         alert.type = AnomalyType::TransporterFailure;
         alert.contractId = event.contractId;
@@ -83,7 +83,7 @@ void TelemetryWatchdog::processMandiPriceTick(const MandiPriceTickEvent& event, 
 void TelemetryWatchdog::triggerAnomaly(const AnomalyAlert& alert) {
     EventLog::instance().append(
         alert.detectedAt, EventLevel::FAULT, "WATCHDOG",
-        "ANOMALY DETECTED [" + alert.contractId.value + " / " + alert.agentId.value + "]: " + alert.description);
+        "ANOMALY DETECTED [" + alert.contractId.str() + " / " + alert.agentId.value + "]: " + alert.description);
     notifyAnomalyAlert(alert);
 }
 

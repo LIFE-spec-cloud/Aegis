@@ -74,7 +74,7 @@ void testVernacularVoiceParsing20PlusPhrases() {
             auto* createCmd = std::get_if<CreateHarvestBatchCommand>(&result.command.value());
             assert(createCmd != nullptr);
             assert(createCmd->commodity == tc.expectedCrop);
-            assert(std::abs(createCmd->quantity.value - tc.expectedQuintals) < 1e-3);
+            assert(std::abs(createCmd->quantity.value() - tc.expectedQuintals) < 1e-3);
         }
 
         // Per hard rule: All voice orders generate ConfirmationCard

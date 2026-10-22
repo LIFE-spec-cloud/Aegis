@@ -20,7 +20,7 @@ public:
             return std::nullopt;
         }
 
-        std::string slotKey = mandiId.value + "@" + std::to_string(slotTime.ticks);
+        std::string slotKey = mandiId.value + "@" + std::to_string(slotTime.ticks());
         if (m_reservedSlots.find(slotKey) != m_reservedSlots.end()) {
             return std::nullopt; // Slot already taken
         }
@@ -39,7 +39,7 @@ public:
         if (!handle.isValid()) return false;
         if (m_failCancellations) return false;
 
-        auto it = m_activeReservations.find(handle.reservationId());
+        auto it = m_activeReservations.find(handle.reservationIdStr());
         if (it != m_activeReservations.end()) {
             m_reservedSlots.erase(it->second);
             m_activeReservations.erase(it);
@@ -53,7 +53,7 @@ public:
     }
 
     [[nodiscard]] bool isSlotReserved(const AgentId& mandiId, SimTime slotTime) const {
-        std::string slotKey = mandiId.value + "@" + std::to_string(slotTime.ticks);
+        std::string slotKey = mandiId.value + "@" + std::to_string(slotTime.ticks());
         return m_reservedSlots.find(slotKey) != m_reservedSlots.end();
     }
 

@@ -289,7 +289,7 @@ bool TransitContractCommand::divertToProcessor(
 
     EventLog::instance().append(
         currentTime, EventLevel::RECOVERY, "COMMAND",
-        "Contract " + m_params.contractId.value + " successfully diverted to processor " + 
+        "Contract " + m_params.contractId.str() + " successfully diverted to processor " + 
         processorId.value + " (zero slot locks held, contract v" + std::to_string(m_version) + ")");
 
     return true;
@@ -361,7 +361,7 @@ void TransitContractCommand::logStateTransition(
         lvl = EventLevel::RECOVERY;
     }
 
-    std::string msg = "Contract " + m_params.contractId.value + " [" + 
+    std::string msg = "Contract " + m_params.contractId.str() + " [" + 
                       stateToStr(from) + " -> " + stateToStr(to) + "] (v" + 
                       std::to_string(m_version) + "): " + note;
     EventLog::instance().append(time, lvl, "CONTRACT_STATE", msg);

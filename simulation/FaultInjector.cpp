@@ -64,7 +64,7 @@ std::vector<AnomalyAlert> FaultInjector::pollDueFaults(SimTime currentSimTime) {
     std::vector<AnomalyAlert> triggeredAlerts;
 
     for (auto& fault : m_faults) {
-        if (!fault.triggered && currentSimTime.ticks >= fault.triggerTime.ticks) {
+        if (!fault.triggered && currentSimTime.ticks() >= fault.triggerTime.ticks()) {
             fault.triggered = true;
 
             AnomalyAlert alert;

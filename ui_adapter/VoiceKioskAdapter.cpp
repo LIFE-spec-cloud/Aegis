@@ -171,7 +171,7 @@ ParsedOrderResult VoiceKioskAdapter::parseVoiceText(const InputEvent& event) {
     card.promptHinglish = oss.str();
 
     std::ostringstream detailsOss;
-    detailsOss << "Normalized: " << normalizedQuintals.value << " Quintals | Confidence: " 
+    detailsOss << "Normalized: " << normalizedQuintals.value() << " Quintals | Confidence: " 
                << static_cast<int>(score * 100.0) << "%";
     card.summaryDetails = detailsOss.str();
 

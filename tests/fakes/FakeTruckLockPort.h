@@ -38,7 +38,7 @@ public:
         if (!handle.isValid()) return false;
         if (m_failReleases) return false;
 
-        auto it = m_activeLocks.find(handle.lockId());
+        auto it = m_activeLocks.find(handle.lockIdStr());
         if (it != m_activeLocks.end()) {
             m_lockedTrucks.erase(it->second);
             m_activeLocks.erase(it);
@@ -60,12 +60,12 @@ public:
         }
 
         // Release old truck
-        auto it = m_activeLocks.find(handle.lockId());
+        auto it = m_activeLocks.find(handle.lockIdStr());
         if (it != m_activeLocks.end()) {
             m_lockedTrucks.erase(it->second);
             // Re-bind to new truck
-            m_lockedTrucks[newTruckId.value] = handle.lockId();
-            m_activeLocks[handle.lockId()] = newTruckId.value;
+            m_lockedTrucks[newTruckId.value] = handle.lockIdStr();
+            m_activeLocks[handle.lockIdStr()] = newTruckId.value;
             handle.setTruckId(newTruckId);
             return true;
         }
