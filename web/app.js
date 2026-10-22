@@ -12,7 +12,7 @@ const simState = {
   timeMinutes: 120, // T+120m (02:00)
   speed: 1,
   seed: 42,
-  audioEnabled: true,
+  audioEnabled: false, // Text-to-speech and audio alerts disabled
   timerId: null,
 
   // Crop Batch
@@ -163,7 +163,19 @@ function playAlertChime(isSuccess = true) {
 // 3. System Announcements & Notification Feed (Silent Visual Updates)
 // ============================================================================
 
+// Immediately cancel and suppress browser TTS
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  try {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak = function() {}; // Prevent any speech output
+  } catch (e) {}
+}
+
 function speakHinglishAlert(text) {
+  // Ensure audio speech is completely silenced
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try { window.speechSynthesis.cancel(); } catch(e) {}
+  }
   // Update announcement display quietly without audio speech
   const subtitleEl = document.getElementById('audioSpeechSubtitle');
   if (subtitleEl) {
