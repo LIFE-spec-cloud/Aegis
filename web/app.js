@@ -1126,29 +1126,107 @@ function stopMicVisualizer() {
     });
   }
 
-  // DTMF Numpad Buttons
+  // DTMF Numpad Buttons (Interactive Telephone IVR)
   document.querySelectorAll('.numpad-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.key;
       playDtmfTone(key);
-      logEvent("INFO", "DTMF_KEYPAD", `DTMF Key Pressed: [${key}]`);
+      if (key === '1') {
+        simState.batch.commodity = "Tomato";
+        document.getElementById('parsedCommodity').textContent = "Tamatar (Tomato)";
+        updateProduceCard("Tomato", simState.batch.volume);
+      } else if (key === '2') {
+        simState.batch.commodity = "Onion";
+        document.getElementById('parsedCommodity').textContent = "Pyaaz (Onion)";
+        updateProduceCard("Onion", simState.batch.volume);
+      } else if (key === '3') {
+        simState.batch.commodity = "Potato";
+        document.getElementById('parsedCommodity').textContent = "Aalu (Potato)";
+        updateProduceCard("Potato", simState.batch.volume);
+      } else if (key === '4') {
+        document.getElementById('parsedDestination').textContent = "Azadpur Mandi";
+      } else if (key === '5') {
+        document.getElementById('parsedDestination').textContent = "Ghazipur Mandi";
+      } else if (key === '6') {
+        document.getElementById('parsedDestination').textContent = "Sonipat Processing Plant";
+      } else if (key === '7') {
+        simState.batch.volume = 25.0;
+        document.getElementById('parsedQuantity').textContent = "25.0 Quintals";
+        updateProduceCard(simState.batch.commodity, 25.0);
+      } else if (key === '8') {
+        simState.batch.volume = 50.0;
+        document.getElementById('parsedQuantity').textContent = "50.0 Quintals";
+        updateProduceCard(simState.batch.commodity, 50.0);
+      } else if (key === '9' || key === '#') {
+        document.getElementById('btnConfirm2PC').click();
+        return;
+      } else if (key === '*') {
+        document.getElementById('btnCancel2PC').click();
+        return;
+      }
+      logEvent("INFO", "DTMF_IVR", `DTMF Key [${key}] selected: ${simState.batch.commodity} (${simState.batch.volume}q) ➔ ${document.getElementById('parsedDestination').textContent}`);
     });
   });
 
   // 2PC Buttons
   document.getElementById('btnConfirm2PC').addEventListener('click', () => {
     playAlertChime(true);
-    speakHinglishAlert("Dhanyavaad! 2-Phase Commit safal raha. Truck aur gate slot reserve ho gaye hain.");
-    logEvent("INFO", "2PC_COMMIT", "Farmer confirmed contract via voice kiosk. 2PC commit verified.");
+    simState.contract.state = "COMMITTED";
+    simState.contract.hasTruckLock = true;
+    simState.contract.hasGateSlot = true;
+    simState.contract.hasEscrow = true;
+    simState.contract.version++;
+
+    // Map parsed destination to node ID
+    const parsedDestText = document.getElementById('parsedDestination').textContent;
+    if (parsedDestText.includes("Ghazipur")) {
+      simState.contract.mandiId = "Mandi_Ghazipur";
+    } else if (parsedDestText.includes("Sonipat") || parsedDestText.includes("Plant")) {
+      simState.contract.mandiId = "Processor_KetchupCo";
+    } else {
+      simState.contract.mandiId = "Mandi_Azadpur";
+    }
+
+    const t1 = simState.trucks[0];
+    t1.state = "EN_ROUTE";
+    t1.currentProgress = 0.0;
+    document.getElementById('truck1ProgressBar').style.width = '0%';
+    document.getElementById('truck1ProgressBar').style.background = '';
+    document.getElementById('truck1StateBadge').className = 'truck-state-badge enroute';
+    document.getElementById('truck1StateBadge').textContent = 'EN_ROUTE';
+    document.getElementById('truck1RouteText').textContent = `Farm_Sonipat ➔ ${simState.contract.mandiId.replace('_', ' ')}`;
+    document.getElementById('truck1Eta').textContent = '220m';
+
+    // Update active route line
+    const edgeAzad = document.getElementById('edge_NH44_Junction_Mandi_Azadpur');
+    const edgeGhaz = document.getElementById('edge_NH44_Junction_Mandi_Ghazipur');
+    const edgePlant = document.getElementById('edge_NH44_Junction_Processor_KetchupCo');
+    if (edgeAzad) edgeAzad.className.baseVal = simState.contract.mandiId === "Mandi_Azadpur" ? "map-edge active-route" : "map-edge";
+    if (edgeGhaz) edgeGhaz.className.baseVal = simState.contract.mandiId === "Mandi_Ghazipur" ? "map-edge active-route reroute" : "map-edge";
+    if (edgePlant) edgePlant.className.baseVal = simState.contract.mandiId === "Processor_KetchupCo" ? "map-edge active-route reroute" : "map-edge";
+
+    updateInvariantMonitor();
+    updateTruckPosition();
+
+    speakHinglishAlert(`Dhanyavaad! 2-Phase Commit safal raha. ${simState.batch.volume}q ${simState.batch.commodity} ke liye truck aur ${simState.contract.mandiId.replace('_', ' ')} slot reserve ho gaye hain.`);
+    logEvent("INFO", "2PC_COMMIT", `2PC Commit Succeeded: ${simState.batch.volume}q ${simState.batch.commodity} locked for ${simState.contract.mandiId} (Contract v${simState.contract.version}).`);
+    
+    // Auto-start simulation so the journey starts
+    startSimulation();
   });
 
   document.getElementById('btnCancel2PC').addEventListener('click', () => {
     playAlertChime(false);
+    pauseSimulation();
     simState.contract.state = "ABORTED";
     simState.contract.hasTruckLock = false;
     simState.contract.hasGateSlot = false;
     simState.contract.hasEscrow = false;
+    simState.trucks[0].state = "IDLE";
+    document.getElementById('truck1StateBadge').className = "truck-state-badge idle";
+    document.getElementById('truck1StateBadge').textContent = "CANCELLED (ABORTED)";
     updateInvariantMonitor();
+    updateTruckPosition();
     speakHinglishAlert("Aadesh radd kar diya gaya hai. Sabhi resource locks release ho chuke hain.");
     logEvent("ROLLBACK", "2PC_ABORT", "Farmer cancelled request. Reverse compensation executed with zero leaks.");
   });
