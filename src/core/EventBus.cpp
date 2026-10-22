@@ -1,4 +1,7 @@
 #include "core/EventBus.h"
+#include <future>
+#include <unordered_set>
+#include <vector>
 
 namespace kisansetu::core {
 
@@ -82,8 +85,59 @@ size_t EventBus::dispatchUpTo(contracts::SimTime maxTime) {
 
 size_t EventBus::dispatchAll() {
     size_t count = 0;
-    while (dispatchNext()) {
-        ++count;
+    if (!parallelMode_) {
+        while (dispatchNext()) {
+            ++count;
+        }
+        return count;
+    }
+
+    // Parallel mode: batch delivery for current timestamp, then run agent mailboxes concurrently
+    while (!scheduler_.empty()) {
+        auto nextOpt = scheduler_.nextEventTime();
+        if (!nextOpt.has_value()) {
+            break;
+        }
+        auto currentTime = *nextOpt;
+        if (clock_ != nullptr && currentTime > clock_->now()) {
+            clock_->advanceTo(currentTime);
+        }
+
+        std::unordered_set<Agent*> agentsWithWork;
+        while (!scheduler_.empty() && scheduler_.nextEventTime().value_or(currentTime + contracts::SimTime(1)) == currentTime) {
+            auto scheduled = scheduler_.pop();
+            auto it = agents_.find(scheduled.envelope.receiver());
+            if (it != agents_.end() && it->second != nullptr) {
+                eventLog_.log(scheduled.time, "MESSAGE_DELIVERED",
+                              scheduled.envelope.sender(),
+                              scheduled.envelope.receiver(),
+                              scheduled.envelope.correlationId(),
+                              "Delivered to mailbox of " + it->second->id().str());
+                it->second->deliver(std::move(scheduled.envelope));
+                agentsWithWork.insert(it->second);
+            } else {
+                eventLog_.log(scheduled.time, "MESSAGE_DROPPED_UNKNOWN_RECIPIENT",
+                              scheduled.envelope.sender(),
+                              scheduled.envelope.receiver(),
+                              scheduled.envelope.correlationId(),
+                              "Receiver not registered on EventBus");
+            }
+            ++count;
+        }
+
+        if (agentsWithWork.size() == 1) {
+            (*agentsWithWork.begin())->processAllMessages();
+        } else if (agentsWithWork.size() > 1) {
+            std::vector<std::future<void>> futures;
+            for (auto* agent : agentsWithWork) {
+                futures.push_back(std::async(std::launch::async, [agent]() {
+                    agent->processAllMessages();
+                }));
+            }
+            for (auto& f : futures) {
+                f.get();
+            }
+        }
     }
     return count;
 }

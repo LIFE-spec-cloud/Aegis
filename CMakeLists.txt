@@ -97,6 +97,7 @@ add_executable(kisansetu_tests
     tests/test_foundation.cpp
     tests/test_domain.cpp
     tests/test_cnp_integration.cpp
+    tests/test_planning_and_evaluation.cpp
 )
 target_link_libraries(kisansetu_tests PRIVATE kisansetu_agents)
 target_include_directories(kisansetu_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)

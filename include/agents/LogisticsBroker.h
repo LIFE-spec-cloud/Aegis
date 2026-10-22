@@ -12,6 +12,7 @@
 #include <functional>
 
 namespace kisansetu::core { class EventBus; }
+namespace kisansetu::domain { class RoadGraph; }
 
 namespace kisansetu::agents {
 
@@ -58,12 +59,19 @@ public:
           eventLog_(eventLog) {}
 
     void setEventBus(core::EventBus* bus) { eventBus_ = bus; }
+    void setRoadGraph(const domain::RoadGraph* graph) { roadGraph_ = graph; }
 
     /// Register agent roles for CFP broadcast targeting
-    void registerTransporter(const contracts::AgentId& id);
-    void registerMandi(const contracts::AgentId& id, const contracts::NodeId& location);
+    void registerTransporter(const contracts::AgentId& id,
+                             contracts::Quintals capacity = contracts::Quintals(50.0),
+                             const contracts::NodeId& location = contracts::NodeId("Depot_A"));
+    void registerMandi(const contracts::AgentId& id,
+                       const contracts::NodeId& location,
+                       contracts::Money basePrice = contracts::Money::fromRupees(2000.0),
+                       size_t capacity = 4);
     void registerFarmer(const contracts::AgentId& id);
-    void registerProcessor(const contracts::AgentId& id);
+    void registerProcessor(const contracts::AgentId& id,
+                           const contracts::NodeId& location = contracts::NodeId("Plant_MotherDairy"));
 
     /// Slot port injection (Mandi-owned slot ports, keyed by AgentId)
     using SlotReserveFunc = std::function<std::optional<contracts::SlotReservationHandle>(
@@ -120,6 +128,26 @@ public:
         const contracts::RouteInfo& route,
         double ambientTempC) const override;
 
+    // Herd mitigation & Inbound tracking
+    void addInboundTruck(const contracts::AgentId& mandiId);
+    void removeInboundTruck(const contracts::AgentId& mandiId);
+    [[nodiscard]] size_t getInboundTruckCount(const contracts::AgentId& mandiId) const;
+
+    // Reroute hysteresis and bounded attempts
+    [[nodiscard]] bool shouldReroute(
+        contracts::ContractId cid,
+        contracts::Money currentProjectedMargin,
+        contracts::Money alternateMargin,
+        contracts::Money deltaThreshold = contracts::Money::fromRupees(5000.0),
+        size_t maxReroutes = 2) const;
+
+    void recordReroute(
+        contracts::ContractId cid,
+        const contracts::AgentId& oldMandi,
+        const contracts::AgentId& newMandi);
+
+    [[nodiscard]] size_t getRerouteCount(contracts::ContractId cid) const;
+
     // Session accessors (for testing)
     [[nodiscard]] const ContractSession* findSession(contracts::ContractId id) const;
     [[nodiscard]] size_t activeSessionCount() const { return sessions_.size(); }
@@ -128,17 +156,38 @@ public:
 private:
     contracts::EventLog& eventLog_;
     core::EventBus* eventBus_{nullptr};
+    const domain::RoadGraph* roadGraph_{nullptr};
     uint64_t nextContractId_{1};
     uint64_t nextTruckLockId_{0};
     uint64_t nextEscrowId_{0};
     std::unordered_set<contracts::AgentId> lockedTrucks_;
     std::unordered_map<contracts::ContractId, contracts::Money> escrowLedger_;
 
+    // Inbound traffic and reroute counts
+    std::unordered_map<contracts::AgentId, size_t> inboundTrucksPerMandi_;
+    std::unordered_map<contracts::ContractId, size_t> rerouteCounts_;
+
     // Agent registries
-    std::vector<contracts::AgentId> registeredTransporters_;
+    struct TransporterInfo {
+        contracts::AgentId id;
+        contracts::Quintals capacity{50.0};
+        contracts::NodeId location;
+    };
+    std::vector<TransporterInfo> registeredTransporters_;
     std::vector<contracts::AgentId> registeredFarmers_;
-    std::vector<contracts::AgentId> registeredProcessors_;
-    struct MandiInfo { contracts::AgentId id; contracts::NodeId location; };
+
+    struct ProcessorInfo {
+        contracts::AgentId id;
+        contracts::NodeId location;
+    };
+    std::vector<ProcessorInfo> registeredProcessors_;
+
+    struct MandiInfo {
+        contracts::AgentId id;
+        contracts::NodeId location;
+        contracts::Money basePrice{contracts::Money::fromRupees(2000.0)};
+        size_t capacity{4};
+    };
     std::vector<MandiInfo> registeredMandis_;
 
     // Slot port callbacks (Mandi-owned, keyed by mandiId)

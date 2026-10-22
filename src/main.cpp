@@ -11,6 +11,7 @@
 #include "agents/FarmerAgent.h"
 #include "agents/TransporterAgent.h"
 #include "agents/APMCMandiAgent.h"
+#include "domain/BaselineEvaluator.h"
 #include <iostream>
 #include <string>
 
@@ -24,6 +25,7 @@ int main(int argc, char* argv[]) {
     bool parallelMode = false;
     bool plainMode = false;
     bool noColor = false;
+    bool baselineMode = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -31,6 +33,7 @@ int main(int argc, char* argv[]) {
         if (arg == "--parallel") parallelMode = true;
         if (arg == "--plain") plainMode = true;
         if (arg == "--no-color") noColor = true;
+        if (arg == "--baseline") baselineMode = true;
     }
 
     kisansetu::core::ConfigLoader config;
@@ -51,6 +54,10 @@ int main(int argc, char* argv[]) {
     kisansetu::core::Rng rng(static_cast<uint64_t>(config.getInt("simulation.random_seed", 42)));
     kisansetu::core::EventBus bus(scheduler, eventLog, &clock, &rng);
 
+    if (parallelMode) {
+        bus.setParallelMode(true, 4);
+    }
+
     eventLog.log(kisansetu::contracts::SimTime(0), "SIMULATION_INIT",
                  kisansetu::contracts::AgentId("System"),
                  kisansetu::contracts::AgentId("Broadcast"),
@@ -59,8 +66,14 @@ int main(int argc, char* argv[]) {
 
     std::cout << "[Mode] Demo: " << (demoMode ? "YES" : "NO")
               << " | Parallel: " << (parallelMode ? "YES" : "NO")
+              << " | Baseline: " << (baselineMode ? "YES" : "NO")
               << " | Plain: " << (plainMode ? "YES" : "NO")
               << " | NoColor: " << (noColor ? "YES" : "NO") << "\n";
+
+    if (baselineMode) {
+        auto result = kisansetu::domain::BaselineEvaluator::runEvaluation(10, 30.0, 0.30);
+        std::cout << result.toReportString() << "\n";
+    }
 
     if (demoMode) {
         std::cout << "\n--- [LIVE DEMO] Starting Multi-Agent CNP Logistics Simulation ---\n";

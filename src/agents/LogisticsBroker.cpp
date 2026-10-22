@@ -1,24 +1,36 @@
 #include "agents/LogisticsBroker.h"
 #include "core/EventBus.h"
+#include "domain/RoadGraph.h"
+#include "domain/PriceModel.h"
+#include "domain/CropFreshnessState.h"
+#include "strategy/IRoutePlanningStrategy.h"
+#include <cmath>
+#include <algorithm>
 
 namespace kisansetu::agents {
 
 // ─── Agent Registry ─────────────────────────────────────────────────────────
 
-void LogisticsBroker::registerTransporter(const contracts::AgentId& id) {
-    registeredTransporters_.push_back(id);
+void LogisticsBroker::registerTransporter(const contracts::AgentId& id,
+                                         contracts::Quintals capacity,
+                                         const contracts::NodeId& location) {
+    registeredTransporters_.push_back({id, capacity, location});
 }
 
-void LogisticsBroker::registerMandi(const contracts::AgentId& id, const contracts::NodeId& location) {
-    registeredMandis_.push_back({id, location});
+void LogisticsBroker::registerMandi(const contracts::AgentId& id,
+                                   const contracts::NodeId& location,
+                                   contracts::Money basePrice,
+                                   size_t capacity) {
+    registeredMandis_.push_back({id, location, basePrice, capacity});
 }
 
 void LogisticsBroker::registerFarmer(const contracts::AgentId& id) {
     registeredFarmers_.push_back(id);
 }
 
-void LogisticsBroker::registerProcessor(const contracts::AgentId& id) {
-    registeredProcessors_.push_back(id);
+void LogisticsBroker::registerProcessor(const contracts::AgentId& id,
+                                       const contracts::NodeId& location) {
+    registeredProcessors_.push_back({id, location});
 }
 
 void LogisticsBroker::registerSlotPort(const contracts::AgentId& mandiId,
@@ -85,7 +97,8 @@ void LogisticsBroker::handleTaskAnnouncement(const contracts::Envelope& envelope
 
 void LogisticsBroker::broadcastCfp(ContractSession& session, contracts::SimTime sentAt) {
     // Broadcast CFP to all registered transporters
-    for (const auto& tid : registeredTransporters_) {
+    for (const auto& tinfo : registeredTransporters_) {
+        const auto& tid = tinfo.id;
         contracts::CfpPayload cfp{
             .contractId = session.contractId,
             .farmerId = session.farmerId,
@@ -525,48 +538,210 @@ bool LogisticsBroker::transferDeposit(
 // ─── IRecoveryContext ───────────────────────────────────────────────────────
 
 std::vector<contracts::AgentId> LogisticsBroker::findIdleTrucks(
-    const contracts::NodeId& /*location*/,
-    contracts::Quintals /*capacity*/) const {
-    // Return transporters not currently locked
-    std::vector<contracts::AgentId> idle;
-    for (const auto& tid : registeredTransporters_) {
-        if (!lockedTrucks_.contains(tid)) {
-            idle.push_back(tid);
+    const contracts::NodeId& location,
+    contracts::Quintals capacity) const {
+    std::vector<std::pair<double, contracts::AgentId>> candidates;
+    for (const auto& tinfo : registeredTransporters_) {
+        if (!lockedTrucks_.contains(tinfo.id) && tinfo.capacity >= capacity) {
+            double dist = 0.0;
+            if (roadGraph_) {
+                auto r = routeTo(location, tinfo.location, contracts::RouteStrategyType::DIJKSTRA);
+                dist = r.distanceKm;
+            }
+            candidates.push_back({dist, tinfo.id});
         }
+    }
+    std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
+        return a.first < b.first;
+    });
+    std::vector<contracts::AgentId> idle;
+    idle.reserve(candidates.size());
+    for (const auto& c : candidates) {
+        idle.push_back(c.second);
     }
     return idle;
 }
 
 std::vector<contracts::MandiCandidate> LogisticsBroker::rankMandis(
-    const contracts::CropBatchInfo& /*batch*/,
-    const std::vector<contracts::AgentId>& /*exclude*/) const {
-    return {};
+    const contracts::CropBatchInfo& batch,
+    const std::vector<contracts::AgentId>& exclude) const {
+    std::unordered_set<contracts::AgentId> exSet(exclude.begin(), exclude.end());
+    std::vector<contracts::MandiCandidate> candidates;
+
+    for (const auto& minfo : registeredMandis_) {
+        if (exSet.contains(minfo.id)) {
+            continue;
+        }
+
+        contracts::NodeId origin("Farm_Sonipat");
+        auto r = routeTo(origin, minfo.location, contracts::RouteStrategyType::SPOILAGE_MINIMIZING);
+        double qArrival = predictQuality(batch, r, 28.0);
+        auto state = domain::CropFreshnessState::fromQuality(qArrival);
+        double gradeMultiplier = state->priceMultiplier();
+
+        // Surge price forecast accounting for known inbound trucks (herd effect penalty)
+        size_t inbound = getInboundTruckCount(minfo.id);
+        double cap = static_cast<double>(minfo.capacity > 0 ? minfo.capacity : 4);
+        double ratio = static_cast<double>(inbound) / cap;
+        double surgeFactor = 1.0;
+        if (ratio > 1.0) {
+            surgeFactor = std::max(0.40, 1.0 - 0.50 * (ratio - 1.0));
+        }
+        contracts::Money forecastPrice = minfo.basePrice * surgeFactor;
+
+        // Calculate net margin
+        contracts::Money mandiFees = contracts::Money::fromRupees(50.0 * batch.volume.value());
+        contracts::Money freight = r.freightCost;
+        if (batch.isRefrigerated) {
+            freight = freight * 1.25;
+        }
+
+        contracts::Money net = domain::PriceModel::calculateNetMargin(
+            forecastPrice,
+            gradeMultiplier,
+            batch.volume,
+            freight,
+            mandiFees
+        );
+
+        candidates.push_back(contracts::MandiCandidate{
+            .mandiId = minfo.id,
+            .location = minfo.location,
+            .forecastPrice = forecastPrice,
+            .netMargin = net,
+            .eta = r.estimatedTransitTime,
+            .predictedArrivalQuality = qArrival
+        });
+    }
+
+    std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
+        return a.netMargin > b.netMargin;
+    });
+
+    return candidates;
 }
 
 std::vector<contracts::AgentId> LogisticsBroker::findProcessors(
-    const contracts::NodeId& /*location*/,
-    double /*radiusKm*/) const {
-    return registeredProcessors_;
+    const contracts::NodeId& location,
+    double radiusKm) const {
+    std::vector<contracts::AgentId> inRange;
+    for (const auto& pinfo : registeredProcessors_) {
+        if (roadGraph_) {
+            auto r = routeTo(location, pinfo.location, contracts::RouteStrategyType::DIJKSTRA);
+            if (!r.path.empty() && (radiusKm <= 0.0 || r.distanceKm <= radiusKm)) {
+                inRange.push_back(pinfo.id);
+            }
+        } else {
+            inRange.push_back(pinfo.id);
+        }
+    }
+    return inRange;
 }
 
 contracts::RouteInfo LogisticsBroker::routeTo(
     const contracts::NodeId& from,
     const contracts::NodeId& to,
-    contracts::RouteStrategyType /*strategy*/) const {
+    contracts::RouteStrategyType strategy) const {
+    if (roadGraph_) {
+        auto strat = strategy::IRoutePlanningStrategy::create(strategy);
+        if (strat) {
+            auto r = strat->planRoute(*roadGraph_, from, to);
+            if (!r.path.empty()) {
+                return r;
+            }
+        }
+        return contracts::RouteInfo{
+            .path = {},
+            .distanceKm = std::numeric_limits<double>::infinity(),
+            .estimatedTransitTime = contracts::SimTime(999999),
+            .tollCost = contracts::Money(0),
+            .freightCost = contracts::Money(0)
+        };
+    }
     return contracts::RouteInfo{
         .path = {from, to},
         .distanceKm = 50.0,
         .estimatedTransitTime = contracts::SimTime(60),
         .tollCost = contracts::Money(0),
-        .freightCost = contracts::Money::fromRupees(1500.0)
+        .freightCost = contracts::Money::fromRupees(1250.0)
     };
 }
 
 double LogisticsBroker::predictQuality(
-    const contracts::CropBatchInfo& /*batch*/,
-    const contracts::RouteInfo& /*route*/,
-    double /*ambientTempC*/) const {
-    return 0.80;
+    const contracts::CropBatchInfo& batch,
+    const contracts::RouteInfo& route,
+    double ambientTempC) const {
+    double lambda = 0.030;
+    if (batch.crop == contracts::CommodityType::Onion) {
+        lambda = 0.008;
+    } else if (batch.crop == contracts::CommodityType::Chilli) {
+        lambda = 0.020;
+    }
+
+    double muTemp = 1.0;
+    if (ambientTempC > 20.0) {
+        double clampedT = std::min(ambientTempC, 40.0);
+        muTemp += 0.5 * ((clampedT - 20.0) / 20.0);
+    }
+    if (batch.isRefrigerated) {
+        muTemp *= 0.6;
+    }
+
+    double transitHours = static_cast<double>(route.estimatedTransitTime.ticks()) / 60.0;
+    double decayFactor = std::exp(-lambda * transitHours * muTemp);
+    double q = batch.initialQuality * decayFactor;
+    return std::clamp(q, 0.0, 1.0);
+}
+
+// ─── Herd-Effect Mitigation & Inbound Tracking ──────────────────────────────
+
+void LogisticsBroker::addInboundTruck(const contracts::AgentId& mandiId) {
+    inboundTrucksPerMandi_[mandiId]++;
+}
+
+void LogisticsBroker::removeInboundTruck(const contracts::AgentId& mandiId) {
+    auto it = inboundTrucksPerMandi_.find(mandiId);
+    if (it != inboundTrucksPerMandi_.end() && it->second > 0) {
+        it->second--;
+    }
+}
+
+size_t LogisticsBroker::getInboundTruckCount(const contracts::AgentId& mandiId) const {
+    auto it = inboundTrucksPerMandi_.find(mandiId);
+    return (it != inboundTrucksPerMandi_.end()) ? it->second : 0;
+}
+
+// ─── Rerouting Hysteresis & Cap ─────────────────────────────────────────────
+
+bool LogisticsBroker::shouldReroute(
+    contracts::ContractId cid,
+    contracts::Money currentProjectedMargin,
+    contracts::Money alternateMargin,
+    contracts::Money deltaThreshold,
+    size_t maxReroutes) const {
+    size_t currentAttempts = getRerouteCount(cid);
+    if (currentAttempts >= maxReroutes) {
+        return false;
+    }
+    contracts::Money gain = alternateMargin - currentProjectedMargin;
+    return gain > deltaThreshold;
+}
+
+void LogisticsBroker::recordReroute(
+    contracts::ContractId cid,
+    const contracts::AgentId& oldMandi,
+    const contracts::AgentId& newMandi) {
+    rerouteCounts_[cid]++;
+    removeInboundTruck(oldMandi);
+    addInboundTruck(newMandi);
+    eventLog_.log(contracts::SimTime(0), "REROUTE_RECORDED", id(), newMandi, cid,
+                  "Attempt #" + std::to_string(rerouteCounts_[cid]) +
+                  " from " + oldMandi.str() + " to " + newMandi.str());
+}
+
+size_t LogisticsBroker::getRerouteCount(contracts::ContractId cid) const {
+    auto it = rerouteCounts_.find(cid);
+    return (it != rerouteCounts_.end()) ? it->second : 0;
 }
 
 } // namespace kisansetu::agents

@@ -50,6 +50,17 @@ public:
     void setLatencyTicks(int64_t latencyTicks) noexcept { latencyTicks_ = latencyTicks; }
 
     /**
+     * @brief Toggle multi-threaded worker dispatch for agent mailboxes.
+     */
+    void setParallelMode(bool enabled, size_t threadCount = 2) noexcept {
+        parallelMode_ = enabled;
+        threadCount_ = threadCount;
+    }
+    [[nodiscard]] bool isParallelMode() const noexcept { return parallelMode_; }
+    [[nodiscard]] double packetDropRate() const noexcept { return dropRate_; }
+    [[nodiscard]] int64_t latencyTicks() const noexcept { return latencyTicks_; }
+
+    /**
      * @brief Dispatch the next scheduled event from the scheduler.
      * @return true if an event was dispatched, false if the queue was empty.
      */
@@ -80,6 +91,8 @@ private:
 
     double dropRate_{0.0};
     int64_t latencyTicks_{0};
+    bool parallelMode_{false};
+    size_t threadCount_{2};
 };
 
 } // namespace kisansetu::core
