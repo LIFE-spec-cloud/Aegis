@@ -85,58 +85,33 @@ c:/Projects/Aegis/
 
 ---
 
-## 4. Building and Running
+### Unified Build & Test Workflow
+The repository provides a unified `Makefile` and `CMakeLists.txt` configured with strict compiler flags (`-std=c++20 -Wall -Wextra -Wpedantic -Werror`):
 
-### Prerequisites
-- Modern C++20 compiler (`g++ 11+`, `clang++ 14+`).
-- WSL (Ubuntu 22.04 / 24.04) or native Linux/Windows environment.
-- Standard Library only (zero third-party runtime dependencies).
-
-### Run Test Suites
 ```bash
-# 1. Shared Contracts & Fakes Tests (Phase B0)
-g++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -Iinclude/contracts tests/fakes/test_fakes.cpp -o tests/fakes/test_fakes
-./tests/fakes/test_fakes
+# 1. Build all executables and test suites
+make
 
-# 2. Commitment, 2PC Rollback & Invariant Tests (Phase B1)
-g++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -Iinclude/contracts -Icommands -Itests/fakes commands/TransitContractCommand.cpp tests/test_commands.cpp -o tests/test_commands
-./tests/test_commands
+# 2. Run all 52 test suites across both Person A and Person B modules
+make test
 
-# 3. Telemetry Watchdog & Recovery Scenario Tests (Phase B2)
-g++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -Iinclude/contracts -Icommands -Iobserver -Irecovery -Isimulation -Itests/fakes commands/TransitContractCommand.cpp observer/TelemetryWatchdog.cpp recovery/DistressAuctionRecovery.cpp recovery/DynamicReroutingRecovery.cpp recovery/PeerHandoffRecovery.cpp simulation/FaultInjector.cpp tests/test_recovery.cpp -o tests/test_recovery
-./tests/test_recovery
+# 3. Run the complete unified simulation demonstration
+make demo
 
-# 4. Vernacular Voice Adapter, Lexicon & Dashboard Tests (Phase B3)
-g++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -Iinclude/contracts -Iui_adapter -Iobserver -Isimulation ui_adapter/VernacularLexicon.cpp ui_adapter/VoiceKioskAdapter.cpp observer/AudioSpeakerNotifier.cpp simulation/Dashboard.cpp tests/test_interface.cpp -o tests/test_interface
-./tests/test_interface
+# 4. Verify architectural mediator boundary (no direct agent-to-agent includes)
+make check-boundaries
 ```
 
-### Build & Run the Interactive Demo
+### Direct Compilation (without Make)
 ```bash
-# Compile standalone demo application
-g++ -std=c++20 -Wall -Wextra -Wpedantic -Werror \
-    -Iinclude/contracts -Icommands -Iobserver -Irecovery -Isimulation -Iui_adapter -Itests/fakes \
-    commands/TransitContractCommand.cpp \
-    observer/TelemetryWatchdog.cpp \
-    observer/AudioSpeakerNotifier.cpp \
-    recovery/DistressAuctionRecovery.cpp \
-    recovery/DynamicReroutingRecovery.cpp \
-    recovery/PeerHandoffRecovery.cpp \
-    simulation/FaultInjector.cpp \
-    simulation/Dashboard.cpp \
-    ui_adapter/VernacularLexicon.cpp \
-    ui_adapter/VoiceKioskAdapter.cpp \
-    simulation/main_demo.cpp \
-    -o kisansetu
+# Compile unified kisansetu executable
+g++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -Iinclude -I. \
+    src/main.cpp src/core/*.cpp src/domain/*.cpp src/strategy/*.cpp src/agents/*.cpp \
+    commands/*.cpp observer/*.cpp recovery/*.cpp ui_adapter/*.cpp \
+    simulation/Dashboard.cpp simulation/FaultInjector.cpp -o kisansetu
 
-# Run live ANSI color dashboard demo
-./kisansetu
-
-# Run in pure plain-text mode (for automated snapshot verification)
-./kisansetu --plain
-
-# Run in step-by-step interactive mode
-./kisansetu --step
+# Run interactive demo
+./kisansetu --demo
 ```
 
 ---

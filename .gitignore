@@ -8,6 +8,7 @@ bin/
 *.exe
 kisansetu
 kisansetu_tests
+test_b_*
 tests/fakes/test_fakes
 tests/test_commands
 tests/test_recovery
@@ -17,7 +18,6 @@ tests/test_interface
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
-Makefile
 *.cmake
 compile_commands.json
 

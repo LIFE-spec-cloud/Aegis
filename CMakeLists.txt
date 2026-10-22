@@ -43,12 +43,13 @@ if(ENABLE_TSAN)
 endif()
 
 # Include directories
-include_directories(include)
+include_directories(include .)
 
 # 1. Contracts Library (Header-only / Interface)
 add_library(kisansetu_contracts INTERFACE)
 target_include_directories(kisansetu_contracts INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -58,6 +59,7 @@ add_library(kisansetu_core STATIC ${CORE_SOURCES})
 target_link_libraries(kisansetu_core PUBLIC kisansetu_contracts)
 target_include_directories(kisansetu_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
 # 3. Domain Logic Library
@@ -66,6 +68,7 @@ add_library(kisansetu_domain STATIC ${DOMAIN_SOURCES})
 target_link_libraries(kisansetu_domain PUBLIC kisansetu_contracts)
 target_include_directories(kisansetu_domain PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
 # 4. Strategy Library
@@ -74,6 +77,7 @@ add_library(kisansetu_strategy STATIC ${STRATEGY_SOURCES})
 target_link_libraries(kisansetu_strategy PUBLIC kisansetu_domain)
 target_include_directories(kisansetu_strategy PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
 # 5. Agents Library
@@ -82,11 +86,64 @@ add_library(kisansetu_agents STATIC ${AGENTS_SOURCES})
 target_link_libraries(kisansetu_agents PUBLIC kisansetu_core kisansetu_domain kisansetu_strategy)
 target_include_directories(kisansetu_agents PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
+# 6. Commands (2PC, InvariantChecker)
+file(GLOB COMMANDS_SOURCES "commands/*.cpp")
+add_library(kisansetu_commands STATIC ${COMMANDS_SOURCES})
+target_link_libraries(kisansetu_commands PUBLIC kisansetu_contracts)
+target_include_directories(kisansetu_commands PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+
+# 7. Observer & Telemetry
+file(GLOB OBSERVER_SOURCES "observer/*.cpp")
+add_library(kisansetu_observer STATIC ${OBSERVER_SOURCES})
+target_link_libraries(kisansetu_observer PUBLIC kisansetu_contracts)
+target_include_directories(kisansetu_observer PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+
+# 8. Recovery Strategies
+file(GLOB RECOVERY_SOURCES "recovery/*.cpp")
+add_library(kisansetu_recovery STATIC ${RECOVERY_SOURCES})
+target_link_libraries(kisansetu_recovery PUBLIC kisansetu_contracts kisansetu_commands)
+target_include_directories(kisansetu_recovery PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+
+# 9. UI Adapter & Voice Kiosk
+file(GLOB UI_SOURCES "ui_adapter/*.cpp")
+add_library(kisansetu_ui STATIC ${UI_SOURCES})
+target_link_libraries(kisansetu_ui PUBLIC kisansetu_contracts)
+target_include_directories(kisansetu_ui PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+
+# 10. Simulation & Fault Injector
+file(GLOB SIM_SOURCES "simulation/*.cpp")
+add_library(kisansetu_sim STATIC ${SIM_SOURCES})
+target_link_libraries(kisansetu_sim PUBLIC kisansetu_contracts)
+target_include_directories(kisansetu_sim PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 
 # Main Executable
 add_executable(kisansetu src/main.cpp)
-target_link_libraries(kisansetu PRIVATE kisansetu_agents)
+target_link_libraries(kisansetu PRIVATE
+    kisansetu_agents
+    kisansetu_commands
+    kisansetu_observer
+    kisansetu_recovery
+    kisansetu_ui
+    kisansetu_sim
+)
 
 # Tests
 enable_testing()
@@ -99,7 +156,14 @@ add_executable(kisansetu_tests
     tests/test_cnp_integration.cpp
     tests/test_planning_and_evaluation.cpp
 )
-target_link_libraries(kisansetu_tests PRIVATE kisansetu_agents)
+target_link_libraries(kisansetu_tests PRIVATE
+    kisansetu_agents
+    kisansetu_commands
+    kisansetu_observer
+    kisansetu_recovery
+    kisansetu_ui
+    kisansetu_sim
+)
 target_include_directories(kisansetu_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
 add_test(NAME AllUnitTests COMMAND kisansetu_tests)
