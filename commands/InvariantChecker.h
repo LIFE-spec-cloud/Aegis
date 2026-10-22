@@ -13,11 +13,58 @@ namespace agro {
 
 struct InvariantCheckResult {
     bool passed{true};
-    std::string diagnosticMessage;
+    std::string diagnosticMessage{};
+    std::string violationMessage{};
 };
 
 class InvariantChecker {
 public:
+    static InvariantCheckResult verify(
+        const std::vector<const TransitContractCommand*>& contracts,
+        size_t expectedTruckLocks,
+        size_t expectedSlots,
+        size_t expectedEscrows) {
+        
+        size_t actualTruckLocks = 0;
+        size_t actualSlots = 0;
+        size_t actualEscrows = 0;
+
+        for (const auto* contract : contracts) {
+            if (!contract) continue;
+
+            if (contract->isTerminal()) {
+                // Invariant 1: Terminal contracts must never own active resource handles
+                if (contract->hasTruckLock() || contract->hasSlot() || contract->hasEscrow()) {
+                    std::ostringstream oss;
+                    oss << "Invariant Violation: Terminal contract " << contract->contractId().str()
+                        << " still holds resources! (truckLock=" << contract->hasTruckLock()
+                        << ", slot=" << contract->hasSlot()
+                        << ", escrow=" << contract->hasEscrow() << ")";
+                    return {false, oss.str(), oss.str()};
+                }
+            } else {
+                // Non-terminal contracts
+                if (contract->hasTruckLock()) actualTruckLocks++;
+                if (contract->hasSlot()) actualSlots++;
+                if (contract->hasEscrow()) actualEscrows++;
+            }
+        }
+
+        if (actualTruckLocks != expectedTruckLocks ||
+            actualSlots != expectedSlots ||
+            actualEscrows != expectedEscrows) {
+            
+            std::ostringstream oss;
+            oss << "Invariant Violation: Resource leak or discrepancy detected!\n"
+                << "  Truck locks: expected " << expectedTruckLocks << ", contracts hold " << actualTruckLocks << "\n"
+                << "  Gate slots:  expected " << expectedSlots << ", contracts hold " << actualSlots << "\n"
+                << "  Escrow holds: expected " << expectedEscrows << ", contracts hold " << actualEscrows;
+            return {false, oss.str(), oss.str()};
+        }
+
+        return {true, "All resource invariants verified: zero leaked resources.", ""};
+    }
+
     static InvariantCheckResult verify(
         const std::vector<const TransitContractCommand*>& contracts,
         const fakes::FakeTruckLockPort& truckPort,
