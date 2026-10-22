@@ -360,17 +360,15 @@ function initRoadMap() {
 
     // Circle
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    circle.setAttribute("r", n.type === "mandi" ? 14 : 10);
-    circle.setAttribute("fill", n.type === "farm" ? "#3b82f6" :
-                               n.type === "mandi" ? "#10b981" :
-                               n.type === "plant" ? "#f59e0b" : "#64748b");
-    circle.setAttribute("stroke", "#ffffff");
-    circle.setAttribute("stroke-width", "2");
+    circle.setAttribute("r", n.type === "mandi" ? 12 : 8);
+    circle.setAttribute("fill", n.type === "mandi" ? "#10b981" : "#1e293b");
+    circle.setAttribute("stroke", "#475569");
+    circle.setAttribute("stroke-width", "1.5");
 
     // Node label
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
     text.setAttribute("x", 0);
-    text.setAttribute("y", -18);
+    text.setAttribute("y", -16);
     text.setAttribute("text-anchor", "middle");
     text.setAttribute("class", "node-label");
     text.textContent = n.name.replace("_", " ");
@@ -378,7 +376,7 @@ function initRoadMap() {
     // Sublabel
     const subtext = document.createElementNS("http://www.w3.org/2000/svg", "text");
     subtext.setAttribute("x", 0);
-    subtext.setAttribute("y", 24);
+    subtext.setAttribute("y", 20);
     subtext.setAttribute("text-anchor", "middle");
     subtext.setAttribute("class", "node-sublabel");
     subtext.textContent = n.price ? `₹${n.price}/q` : (n.bidPrice ? `Bid: ₹${n.bidPrice}/q` : "");
@@ -444,21 +442,17 @@ function updateTruckPosition() {
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("transform", `translate(${x}, ${y})`);
 
-    // Halo pulse circle
+    // Subtle halo
     const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    halo.setAttribute("r", "16");
-    halo.setAttribute("fill", t.state === "STALLED" ? "rgba(239, 68, 68, 0.4)" :
-                             t.state === "DIVERTED" ? "rgba(245, 158, 11, 0.4)" :
-                             "rgba(6, 182, 212, 0.35)");
-    halo.setAttribute("class", "halo-pulse");
+    halo.setAttribute("r", "12");
+    halo.setAttribute("fill", t.state === "STALLED" ? "rgba(239, 68, 68, 0.25)" : "rgba(16, 185, 129, 0.2)");
 
     // Truck pin
     const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    pin.setAttribute("r", "8");
-    pin.setAttribute("fill", t.state === "STALLED" ? "#ef4444" :
-                            t.state === "DIVERTED" ? "#f59e0b" : "#06b6d4");
+    pin.setAttribute("r", "6");
+    pin.setAttribute("fill", t.state === "STALLED" ? "#ef4444" : "#10b981");
     pin.setAttribute("stroke", "#ffffff");
-    pin.setAttribute("stroke-width", "2");
+    pin.setAttribute("stroke-width", "1.5");
 
     g.appendChild(halo);
     g.appendChild(pin);
