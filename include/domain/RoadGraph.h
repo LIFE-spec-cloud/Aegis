@@ -21,7 +21,7 @@ struct RoadEdge {
 
     [[nodiscard]] contracts::SimTime effectiveTravelTime() const {
         return contracts::SimTime(static_cast<int64_t>(
-            baseTravelTime.ticks() * congestionMultiplier));
+            std::round(static_cast<double>(baseTravelTime.ticks()) * congestionMultiplier)));
     }
 };
 
@@ -39,9 +39,23 @@ public:
                  contracts::SimTime travelTime,
                  contracts::Money tollCost);
 
+    void addBidirectionalEdge(contracts::NodeId u,
+                              contracts::NodeId v,
+                              double distanceKm,
+                              contracts::SimTime travelTime,
+                              contracts::Money tollCost);
+
     void setCongestion(const contracts::NodeId& from,
                        const contracts::NodeId& to,
                        double multiplier);
+
+    void setToll(const contracts::NodeId& from,
+                 const contracts::NodeId& to,
+                 contracts::Money newToll);
+
+    void setTravelTime(const contracts::NodeId& from,
+                       const contracts::NodeId& to,
+                       contracts::SimTime newTravelTime);
 
     [[nodiscard]] bool hasNode(const contracts::NodeId& node) const;
     [[nodiscard]] const std::vector<contracts::NodeId>& nodes() const noexcept { return nodes_; }

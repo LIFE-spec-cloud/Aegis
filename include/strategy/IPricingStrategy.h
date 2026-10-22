@@ -24,4 +24,7 @@ public:
         double absorptionCapacity) const = 0;
 };
 
+std::unique_ptr<IPricingStrategy> createSurgePricingStrategy(double sensitivityK = 0.50, double floorMultiplier = 0.40);
+std::unique_ptr<IPricingStrategy> createUniformPriceAuctionStrategy(double sensitivityK = 0.50, double floorMultiplier = 0.40);
+
 } // namespace kisansetu::strategy

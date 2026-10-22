@@ -2,15 +2,17 @@
 
 #include "contracts/Types.h"
 #include "contracts/Envelope.h"
-#include <functional>
 #include <queue>
 #include <vector>
+#include <optional>
 
 namespace kisansetu::core {
 
 /**
  * @brief Discrete-event simulation scheduler.
+ *
  * Orders events deterministically by (simTime, sequenceNumber).
+ * Sequence numbers are strictly monotonically increasing to guarantee total ordering.
  */
 class Scheduler {
 public:
@@ -29,16 +31,33 @@ public:
 
     Scheduler() = default;
 
+    /**
+     * @brief Schedule an envelope for delivery at a specific simulation time.
+     */
     void schedule(contracts::SimTime time, contracts::Envelope envelope);
+
     [[nodiscard]] bool empty() const noexcept;
     [[nodiscard]] size_t size() const noexcept;
+
+    /**
+     * @brief Inspect the next scheduled event without popping.
+     */
+    [[nodiscard]] std::optional<contracts::SimTime> nextEventTime() const noexcept;
+
+    /**
+     * @brief Pop the highest priority scheduled event (lowest simTime, lowest sequenceNumber).
+     */
     ScheduledEvent pop();
+
+    /**
+     * @brief Clear all scheduled events and reset sequence counter.
+     */
     void reset();
 
 private:
     struct EventComparator {
         bool operator()(const ScheduledEvent& a, const ScheduledEvent& b) const {
-            // Min-heap: smallest time first; if tied, smallest sequenceNumber first
+            // Min-heap: lowest time first; if tied, lowest sequenceNumber first
             if (a.time != b.time) {
                 return a.time > b.time;
             }

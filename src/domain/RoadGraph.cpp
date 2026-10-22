@@ -30,6 +30,15 @@ void RoadGraph::addEdge(contracts::NodeId from,
     adjacency_[from].push_back(edge);
 }
 
+void RoadGraph::addBidirectionalEdge(contracts::NodeId u,
+                                    contracts::NodeId v,
+                                    double distanceKm,
+                                    contracts::SimTime travelTime,
+                                    contracts::Money tollCost) {
+    addEdge(u, v, distanceKm, travelTime, tollCost);
+    addEdge(v, u, distanceKm, travelTime, tollCost);
+}
+
 void RoadGraph::setCongestion(const contracts::NodeId& from,
                              const contracts::NodeId& to,
                              double multiplier) {
@@ -38,6 +47,32 @@ void RoadGraph::setCongestion(const contracts::NodeId& from,
         for (auto& edge : it->second) {
             if (edge.to == to) {
                 edge.congestionMultiplier = multiplier;
+            }
+        }
+    }
+}
+
+void RoadGraph::setToll(const contracts::NodeId& from,
+                       const contracts::NodeId& to,
+                       contracts::Money newToll) {
+    auto it = adjacency_.find(from);
+    if (it != adjacency_.end()) {
+        for (auto& edge : it->second) {
+            if (edge.to == to) {
+                edge.tollCost = newToll;
+            }
+        }
+    }
+}
+
+void RoadGraph::setTravelTime(const contracts::NodeId& from,
+                             const contracts::NodeId& to,
+                             contracts::SimTime newTravelTime) {
+    auto it = adjacency_.find(from);
+    if (it != adjacency_.end()) {
+        for (auto& edge : it->second) {
+            if (edge.to == to) {
+                edge.baseTravelTime = newTravelTime;
             }
         }
     }
@@ -94,24 +129,24 @@ RoadGraph RoadGraph::createDefaultDemoWorld() {
     contracts::NodeId p_sahyadri("Plant_SahyadriAgro");
 
     // Northern cluster (Delhi NCR)
-    graph.addEdge(f_sonipat, j_panipat, 25.0, contracts::SimTime(35), contracts::Money::fromRupees(50.0));
-    graph.addEdge(j_panipat, m_azadpur, 45.0, contracts::SimTime(60), contracts::Money::fromRupees(120.0));
-    graph.addEdge(j_panipat, p_motherdairy, 20.0, contracts::SimTime(30), contracts::Money::fromRupees(0.0));
-    graph.addEdge(m_azadpur, m_ghazipur, 30.0, contracts::SimTime(50), contracts::Money::fromRupees(80.0));
+    graph.addBidirectionalEdge(f_sonipat, j_panipat, 25.0, contracts::SimTime(35), contracts::Money::fromRupees(50.0));
+    graph.addBidirectionalEdge(j_panipat, m_azadpur, 45.0, contracts::SimTime(60), contracts::Money::fromRupees(120.0));
+    graph.addBidirectionalEdge(j_panipat, p_motherdairy, 20.0, contracts::SimTime(30), contracts::Money::fromRupees(0.0));
+    graph.addBidirectionalEdge(m_azadpur, m_ghazipur, 30.0, contracts::SimTime(50), contracts::Money::fromRupees(80.0));
 
     // Western cluster (Maharashtra)
-    graph.addEdge(f_nashik, j_thane, 140.0, contracts::SimTime(180), contracts::Money::fromRupees(250.0));
-    graph.addEdge(j_thane, m_vashi, 30.0, contracts::SimTime(45), contracts::Money::fromRupees(90.0));
-    graph.addEdge(j_thane, p_sahyadri, 15.0, contracts::SimTime(25), contracts::Money::fromRupees(0.0));
+    graph.addBidirectionalEdge(f_nashik, j_thane, 140.0, contracts::SimTime(180), contracts::Money::fromRupees(250.0));
+    graph.addBidirectionalEdge(j_thane, m_vashi, 30.0, contracts::SimTime(45), contracts::Money::fromRupees(90.0));
+    graph.addBidirectionalEdge(j_thane, p_sahyadri, 15.0, contracts::SimTime(25), contracts::Money::fromRupees(0.0));
 
     // Southern cluster (Karnataka)
-    graph.addEdge(f_kolar, m_kolar, 20.0, contracts::SimTime(30), contracts::Money::fromRupees(30.0));
-    graph.addEdge(m_kolar, j_hosur, 60.0, contracts::SimTime(75), contracts::Money::fromRupees(110.0));
-    graph.addEdge(j_hosur, j_nh44, 40.0, contracts::SimTime(50), contracts::Money::fromRupees(60.0));
+    graph.addBidirectionalEdge(f_kolar, m_kolar, 20.0, contracts::SimTime(30), contracts::Money::fromRupees(30.0));
+    graph.addBidirectionalEdge(m_kolar, j_hosur, 60.0, contracts::SimTime(75), contracts::Money::fromRupees(110.0));
+    graph.addBidirectionalEdge(j_hosur, j_nh44, 40.0, contracts::SimTime(50), contracts::Money::fromRupees(60.0));
 
     // Cross-link corridors
-    graph.addEdge(j_panipat, j_nh44, 180.0, contracts::SimTime(220), contracts::Money::fromRupees(300.0));
-    graph.addEdge(j_nh44, m_azadpur, 50.0, contracts::SimTime(70), contracts::Money::fromRupees(100.0));
+    graph.addBidirectionalEdge(j_panipat, j_nh44, 180.0, contracts::SimTime(220), contracts::Money::fromRupees(300.0));
+    graph.addBidirectionalEdge(j_nh44, m_azadpur, 50.0, contracts::SimTime(70), contracts::Money::fromRupees(100.0));
 
     return graph;
 }
