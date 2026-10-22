@@ -9,8 +9,36 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <functional>
+
+namespace kisansetu::core { class EventBus; }
 
 namespace kisansetu::agents {
+
+/**
+ * @brief Tracks a single contract negotiation session through the CNP lifecycle.
+ */
+struct ContractSession {
+    contracts::ContractId contractId;
+    contracts::AgentId farmerId;
+    contracts::CommodityType crop;
+    contracts::Quintals volume;
+    contracts::NodeId origin;
+    contracts::SimTime readyTime;
+    contracts::SimTime deadline;
+    contracts::ContractState state{contracts::ContractState::CREATED};
+
+    std::vector<contracts::ProposePayload> transporterProposals;
+    std::vector<contracts::ProposePayload> mandiProposals;
+
+    // Awarded resources (populated after two-phase commit)
+    std::optional<contracts::SlotReservationHandle> slotHandle;
+    std::optional<contracts::TruckLockHandle> truckHandle;
+    std::optional<contracts::EscrowHandle> escrowHandle;
+
+    contracts::AgentId awardedTransporterId;
+    contracts::AgentId awardedMandiId;
+};
 
 /**
  * @brief Mediator Agent (LogisticsBroker).
@@ -28,6 +56,20 @@ public:
     LogisticsBroker(contracts::AgentId id, contracts::EventLog& eventLog)
         : core::Agent(std::move(id)),
           eventLog_(eventLog) {}
+
+    void setEventBus(core::EventBus* bus) { eventBus_ = bus; }
+
+    /// Register agent roles for CFP broadcast targeting
+    void registerTransporter(const contracts::AgentId& id);
+    void registerMandi(const contracts::AgentId& id, const contracts::NodeId& location);
+    void registerFarmer(const contracts::AgentId& id);
+    void registerProcessor(const contracts::AgentId& id);
+
+    /// Slot port injection (Mandi-owned slot ports, keyed by AgentId)
+    using SlotReserveFunc = std::function<std::optional<contracts::SlotReservationHandle>(
+        const contracts::AgentId&, const contracts::ContractId&, contracts::SimTime)>;
+    using SlotCancelFunc = std::function<bool(contracts::SlotReservationHandle&)>;
+    void registerSlotPort(const contracts::AgentId& mandiId, SlotReserveFunc reserve, SlotCancelFunc cancel);
 
     void onMessage(const contracts::Envelope& envelope) override;
 
@@ -78,12 +120,46 @@ public:
         const contracts::RouteInfo& route,
         double ambientTempC) const override;
 
+    // Session accessors (for testing)
+    [[nodiscard]] const ContractSession* findSession(contracts::ContractId id) const;
+    [[nodiscard]] size_t activeSessionCount() const { return sessions_.size(); }
+    [[nodiscard]] uint64_t nextContractId() const { return nextContractId_; }
+
 private:
     contracts::EventLog& eventLog_;
+    core::EventBus* eventBus_{nullptr};
+    uint64_t nextContractId_{1};
     uint64_t nextTruckLockId_{0};
     uint64_t nextEscrowId_{0};
     std::unordered_set<contracts::AgentId> lockedTrucks_;
     std::unordered_map<contracts::ContractId, contracts::Money> escrowLedger_;
+
+    // Agent registries
+    std::vector<contracts::AgentId> registeredTransporters_;
+    std::vector<contracts::AgentId> registeredFarmers_;
+    std::vector<contracts::AgentId> registeredProcessors_;
+    struct MandiInfo { contracts::AgentId id; contracts::NodeId location; };
+    std::vector<MandiInfo> registeredMandis_;
+
+    // Slot port callbacks (Mandi-owned, keyed by mandiId)
+    struct SlotPort { SlotReserveFunc reserve; SlotCancelFunc cancel; };
+    std::unordered_map<contracts::AgentId, SlotPort> slotPorts_;
+
+    // Active contract sessions
+    std::unordered_map<contracts::ContractId, ContractSession> sessions_;
+
+    // Internal CNP methods
+    void handleTaskAnnouncement(const contracts::Envelope& envelope);
+    void handleProposal(const contracts::Envelope& envelope);
+    void handleFarmerAccept(const contracts::Envelope& envelope);
+    void handleFarmerReject(const contracts::Envelope& envelope);
+    void handleFailure(const contracts::Envelope& envelope);
+
+    void broadcastCfp(ContractSession& session, contracts::SimTime sentAt);
+    bool executeCommit(ContractSession& session, const contracts::AcceptPayload& accept,
+                       contracts::SimTime sentAt);
+    void rollbackSession(ContractSession& session, contracts::SimTime sentAt,
+                         const std::string& reason);
 };
 
 } // namespace kisansetu::agents

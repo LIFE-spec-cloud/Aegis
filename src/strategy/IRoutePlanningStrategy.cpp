@@ -23,6 +23,13 @@ public:
         std::unordered_map<contracts::NodeId, contracts::NodeId> prev;
         std::unordered_map<contracts::NodeId, domain::RoadEdge> edgeTaken;
 
+        if (!graph.hasNode(origin) || !graph.hasNode(destination)) {
+            return contracts::RouteInfo{};
+        }
+        if (origin == destination) {
+            return contracts::RouteInfo{.path = {origin}};
+        }
+
         for (const auto& node : graph.nodes()) {
             dist[node] = std::numeric_limits<int64_t>::max();
         }
@@ -50,7 +57,8 @@ public:
             }
         }
 
-        if (dist[destination] == std::numeric_limits<int64_t>::max()) {
+        auto distIt = dist.find(destination);
+        if (distIt == dist.end() || distIt->second == std::numeric_limits<int64_t>::max()) {
             return contracts::RouteInfo{};
         }
 
@@ -62,11 +70,16 @@ public:
 
         while (curr != origin) {
             path.push_back(curr);
-            const auto& e = edgeTaken[curr];
+            auto edgeIt = edgeTaken.find(curr);
+            auto prevIt = prev.find(curr);
+            if (edgeIt == edgeTaken.end() || prevIt == prev.end()) {
+                return contracts::RouteInfo{};
+            }
+            const auto& e = edgeIt->second;
             totalDist += e.distanceKm;
             totalTicks += e.effectiveTravelTime().ticks();
             totalTolls += e.tollCost;
-            curr = prev[curr];
+            curr = prevIt->second;
         }
         path.push_back(origin);
         std::reverse(path.begin(), path.end());
@@ -112,6 +125,13 @@ public:
         std::unordered_map<contracts::NodeId, contracts::NodeId> prev;
         std::unordered_map<contracts::NodeId, domain::RoadEdge> edgeTaken;
 
+        if (!graph.hasNode(origin) || !graph.hasNode(destination)) {
+            return contracts::RouteInfo{};
+        }
+        if (origin == destination) {
+            return contracts::RouteInfo{.path = {origin}};
+        }
+
         for (const auto& node : graph.nodes()) {
             cost[node] = std::numeric_limits<int64_t>::max();
         }
@@ -141,7 +161,8 @@ public:
             }
         }
 
-        if (cost[destination] == std::numeric_limits<int64_t>::max()) {
+        auto costIt = cost.find(destination);
+        if (costIt == cost.end() || costIt->second == std::numeric_limits<int64_t>::max()) {
             return contracts::RouteInfo{};
         }
 
@@ -153,11 +174,16 @@ public:
 
         while (curr != origin) {
             path.push_back(curr);
-            const auto& e = edgeTaken[curr];
+            auto edgeIt = edgeTaken.find(curr);
+            auto prevIt = prev.find(curr);
+            if (edgeIt == edgeTaken.end() || prevIt == prev.end()) {
+                return contracts::RouteInfo{};
+            }
+            const auto& e = edgeIt->second;
             totalDist += e.distanceKm;
             totalTicks += e.effectiveTravelTime().ticks();
             totalTolls += e.tollCost;
-            curr = prev[curr];
+            curr = prevIt->second;
         }
         path.push_back(origin);
         std::reverse(path.begin(), path.end());

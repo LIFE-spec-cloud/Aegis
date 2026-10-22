@@ -3,6 +3,8 @@
 #include "core/Agent.h"
 #include "contracts/Types.h"
 #include "contracts/Envelope.h"
+#include "contracts/EventLog.h"
+#include "core/EventBus.h"
 
 namespace kisansetu::agents {
 
@@ -17,11 +19,9 @@ public:
     ProcessorAgent(contracts::AgentId id,
                    contracts::NodeId location,
                    contracts::Quintals intakeCapacity,
-                   contracts::Money priceFloor)
-        : core::Agent(std::move(id)),
-          location_(std::move(location)),
-          intakeCapacity_(intakeCapacity),
-          priceFloor_(priceFloor) {}
+                   contracts::Money priceFloor);
+
+    void setDependencies(core::EventBus* bus, contracts::EventLog* log);
 
     void onMessage(const contracts::Envelope& envelope) override;
 
@@ -33,6 +33,9 @@ private:
     contracts::NodeId location_;
     contracts::Quintals intakeCapacity_{0.0};
     contracts::Money priceFloor_{0};
+
+    core::EventBus* eventBus_{nullptr};
+    contracts::EventLog* eventLog_{nullptr};
 };
 
 } // namespace kisansetu::agents
