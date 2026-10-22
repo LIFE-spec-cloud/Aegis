@@ -27,7 +27,7 @@ const simState = {
     harvestTime: 0
   },
 
-  // 2-Phase Commit Contract
+  // 2-Phase Commit Contract 1 (Primary Batch)
   contract: {
     id: "CTR-101",
     state: "COMMITTED", // CREATED, PREPARING, COMMITTED, COMPLETED, COMPENSATED, ABORTED
@@ -41,6 +41,34 @@ const simState = {
     hasTruckLock: true,
     hasGateSlot: true,
     hasEscrow: true
+  },
+
+  // Crop Batch 2 (Concurrent Harvest: Farmer Suresh)
+  batch2: {
+    id: "BATCH-DEMO-02",
+    commodity: "Onion",
+    volume: 40.0,
+    initialQuality: 0.96,
+    currentQuality: 0.95,
+    decayLambda: 0.015,
+    tempMultiplier: 1.10,
+    harvestTime: 0
+  },
+
+  // 2-Phase Commit Contract 2 (Concurrent Shipment)
+  contract2: {
+    id: "CTR-102",
+    state: "IDLE", // IDLE, PREPARING, COMMITTED, COMPLETED, ABORTED
+    version: 1,
+    farmerId: "Farmer_Suresh",
+    transporterId: "Truck_HR02",
+    mandiId: "Mandi_Ghazipur",
+    slotTime: 210,
+    freightCost: 1800,
+    depositAmount: 400,
+    hasTruckLock: false,
+    hasGateSlot: false,
+    hasEscrow: false
   },
 
   // Active Trucks
@@ -267,29 +295,48 @@ function updateProduceCard(crop, qty) {
 // ============================================================================
 
 function updateInvariantMonitor() {
-  const isTerminal = (simState.contract.state === "COMPLETED" || 
-                      simState.contract.state === "COMPENSATED" || 
-                      simState.contract.state === "ABORTED");
+  const isTerminal1 = (simState.contract.state === "COMPLETED" || 
+                       simState.contract.state === "COMPENSATED" || 
+                       simState.contract.state === "ABORTED");
 
-  let truckLocks = (isTerminal || !simState.contract.hasTruckLock) ? 0 : 1;
-  let gateSlots = (isTerminal || !simState.contract.hasGateSlot) ? 0 : 1;
-  let escrowHolds = (isTerminal || !simState.contract.hasEscrow) ? 0 : 1;
-  let activeContracts = isTerminal ? 0 : 1;
+  const isTerminal2 = (simState.contract2.state === "IDLE" ||
+                       simState.contract2.state === "COMPLETED" || 
+                       simState.contract2.state === "COMPENSATED" || 
+                       simState.contract2.state === "ABORTED");
+
+  let truckLocks = 0;
+  let gateSlots = 0;
+  let escrowHolds = 0;
+  let activeContracts = 0;
+
+  if (!isTerminal1) {
+    activeContracts++;
+    if (simState.contract.hasTruckLock) truckLocks++;
+    if (simState.contract.hasGateSlot) gateSlots++;
+    if (simState.contract.hasEscrow) escrowHolds++;
+  }
+
+  if (simState.contract2.state === "COMMITTED" || simState.contract2.state === "PREPARING") {
+    activeContracts++;
+    if (simState.contract2.hasTruckLock) truckLocks++;
+    if (simState.contract2.hasGateSlot) gateSlots++;
+    if (simState.contract2.hasEscrow) escrowHolds++;
+  }
 
   document.getElementById('invTruckLocks').textContent = truckLocks;
   document.getElementById('invGateSlots').textContent = gateSlots;
   document.getElementById('invEscrowHolds').textContent = escrowHolds;
   document.getElementById('invActiveContracts').textContent = activeContracts;
 
-  const invariantPassed = (isTerminal ? (truckLocks === 0 && gateSlots === 0 && escrowHolds === 0) :
-                                       (truckLocks === 1 && gateSlots === 1 && escrowHolds === 1));
+  const totalLocks = truckLocks + gateSlots + escrowHolds;
+  const invariantPassed = (totalLocks === activeContracts * 3);
 
   const badge = document.getElementById('invariantBadge');
   const led = document.getElementById('invariantLed');
 
   if (invariantPassed) {
     badge.className = "badge badge-safe";
-    badge.textContent = isTerminal ? "PASSED (0 LEAKS)" : "VERIFIED (1 HELD)";
+    badge.textContent = activeContracts === 0 ? "PASSED (0 LEAKS)" : `VERIFIED (${activeContracts} BATCH ACTIVE)`;
     led.className = "status-indicator active";
     led.textContent = "0 Leaks";
   } else {
@@ -303,8 +350,129 @@ function updateInvariantMonitor() {
 }
 
 // ============================================================================
-// 6. SVG Road Network & Map Renderer
+// 6. Interactive Node Inspector (Option 3)
 // ============================================================================
+
+function openNodeInspector(nodeKey) {
+  const n = simState.nodes[nodeKey];
+  if (!n) return;
+
+  const inspector = document.getElementById('nodeInspectorCard');
+  if (!inspector) return;
+
+  const typeEl = document.getElementById('inspectNodeType');
+  const titleEl = document.getElementById('inspectNodeTitle');
+  const descEl = document.getElementById('inspectNodeDesc');
+  const priceEl = document.getElementById('inspectNodePrice');
+  const occEl = document.getElementById('inspectNodeOccupancy');
+  const winEl = document.getElementById('inspectNodeWindow');
+  const inbEl = document.getElementById('inspectNodeInbound');
+
+  titleEl.textContent = n.name.replace('_', ' ');
+
+  if (n.type === "mandi") {
+    typeEl.textContent = "APMC WHOLESALE MANDI";
+    typeEl.className = "badge-node-type";
+    descEl.textContent = nodeKey === "Mandi_Azadpur" 
+      ? "Asia's largest primary APMC wholesale fruits & vegetables terminal yard." 
+      : "Major trans-Yamuna agricultural marketing yard serving East Delhi-NCR.";
+    priceEl.textContent = n.glut ? `₹${n.price}/q (GLUT CRASH)` : `₹${n.price}/qtl`;
+    priceEl.style.color = n.glut ? "#ef4444" : "#10b981";
+    occEl.textContent = `${n.occupied} / ${n.capacity} Docks (${n.glut ? '100% Clogged' : 'Normal Flow'})`;
+    winEl.textContent = "04:00 - 08:30 AM (Peak Open Outcry Auction)";
+  } else if (n.type === "farm") {
+    typeEl.textContent = "HARVEST ORIGIN FARM";
+    typeEl.className = "badge-node-type";
+    descEl.textContent = "Farmer Ramesh & Suresh cooperative holding. Sonipat Perishable Cluster.";
+    priceEl.textContent = "Cost: ₹1,200/qtl";
+    priceEl.style.color = "#38bdf8";
+    occEl.textContent = "2 Dispatch Docks (Active Loading)";
+    winEl.textContent = "05:00 AM Harvest Cycle";
+  } else if (n.type === "junction") {
+    typeEl.textContent = "TRANSIT & RENDEZVOUS HUB";
+    typeEl.className = "badge-node-type";
+    descEl.textContent = "Critical corridor artery connecting Haryana harvest belt with Delhi APMC network.";
+    priceEl.textContent = "Toll: ₹180 / truck";
+    priceEl.style.color = "#94a3b8";
+    occEl.textContent = "Highway Speed: 45 km/h";
+    winEl.textContent = "24x7 Continuous Corridor";
+  } else if (n.type === "plant") {
+    typeEl.textContent = "AGRO-PROCESSING PLANT";
+    typeEl.className = "badge-node-type";
+    descEl.textContent = "Mother Dairy commercial processing unit (Puree, Paste, Ketchup Manufacturing).";
+    priceEl.textContent = `Bid: ₹${n.bidPrice}/qtl (Distress Salvage)`;
+    priceEl.style.color = "#f59e0b";
+    occEl.textContent = "Industrial Intake: 1,500 qtl/day";
+    winEl.textContent = "Instant Distress Intake Queue";
+  }
+
+  // Active inbound trucks targeting this node
+  const inbounds = [];
+  if (simState.contract.mandiId === nodeKey && (simState.trucks[0].state === "EN_ROUTE" || simState.trucks[0].state === "DIVERTED")) {
+    inbounds.push(`Truck_DL01 (${simState.trucks[0].currentProgress.toFixed(0)}%)`);
+  }
+  if (simState.contract2.mandiId === nodeKey && simState.trucks[1].state === "EN_ROUTE") {
+    inbounds.push(`Truck_HR02 (${simState.trucks[1].currentProgress.toFixed(0)}%)`);
+  }
+  if (simState.contract.transporterId === "Truck_HR02" && simState.contract.mandiId === nodeKey && simState.trucks[1].state === "EN_ROUTE") {
+    inbounds.push(`Truck_HR02 (${simState.trucks[1].currentProgress.toFixed(0)}%)`);
+  }
+
+  inbEl.textContent = inbounds.length > 0 ? inbounds.join(", ") : "No incoming vehicles";
+
+  inspector.classList.remove('hidden');
+  logEvent("INFO", "NODE_INSPECT", `Inspected node [${n.name}]: Live status retrieved.`);
+}
+
+// ============================================================================
+// 7. SVG Road Network & Map Renderer
+// ============================================================================
+
+function updateRouteHighlights() {
+  const roads = [
+    { from: "Farm_Sonipat", to: "NH44_Junction" },
+    { from: "NH44_Junction", to: "Mandi_Azadpur" },
+    { from: "NH44_Junction", to: "Mandi_Ghazipur" },
+    { from: "NH44_Junction", to: "Processor_KetchupCo" },
+    { from: "Farm_Sonipat", to: "Processor_KetchupCo" }
+  ];
+
+  const dest1 = simState.contract.mandiId;
+  const isB2 = (simState.contract2.state === "COMMITTED" || simState.contract2.state === "PREPARING");
+  const dest2 = simState.contract2.mandiId;
+
+  roads.forEach(r => {
+    const edge = document.getElementById(`edge_${r.from}_${r.to}`);
+    if (!edge) return;
+
+    let isActive = false;
+    let isReroute = false;
+
+    // Origin to NH-44 corridor
+    if (r.from === "Farm_Sonipat" && r.to === "NH44_Junction") {
+      isActive = true;
+    }
+
+    // NH-44 corridor to Primary Contract Destination
+    if (r.from === "NH44_Junction" && r.to === dest1) {
+      isActive = true;
+      if (dest1 === "Mandi_Ghazipur" || dest1 === "Processor_KetchupCo") {
+        isReroute = true;
+      }
+    }
+
+    // NH-44 corridor to Batch 2 Destination (if active)
+    if (isB2 && r.from === "NH44_Junction" && r.to === dest2) {
+      isActive = true;
+    }
+
+    if (isActive) {
+      edge.className.baseVal = isReroute ? "map-edge active-route reroute" : "map-edge active-route";
+    } else {
+      edge.className.baseVal = "map-edge";
+    }
+  });
+}
 
 function initRoadMap() {
   const edgesGroup = document.getElementById('roadEdges');
@@ -332,13 +500,10 @@ function initRoadMap() {
     line.setAttribute("class", "map-edge");
     line.setAttribute("id", `edge_${r.from}_${r.to}`);
 
-    if ((r.from === "Farm_Sonipat" && r.to === "NH44_Junction") ||
-        (r.from === "NH44_Junction" && r.to === "Mandi_Azadpur")) {
-      line.classList.add("active-route");
-    }
-
     edgesGroup.appendChild(line);
   });
+
+  updateRouteHighlights();
 
   // Render Nodes
   nodesGroup.innerHTML = '';
@@ -375,8 +540,7 @@ function initRoadMap() {
     g.appendChild(subtext);
 
     g.addEventListener('click', () => {
-      logEvent("INFO", "NODE_INSPECT", `Inspected ${n.name}: ${n.desc || 'Active Logistics Node'}`);
-      playDtmfTone('5');
+      openNodeInspector(n.name);
     });
 
     nodesGroup.appendChild(g);
@@ -402,33 +566,61 @@ function updateTruckPosition() {
 
   // 1. Calculate Truck DL01 Coordinates
   let x1, y1;
-  const pDest1 = t1.state === "DIVERTED" ? pPlant : (simState.contract.mandiId === "Mandi_Ghazipur" ? pGhaz : pAzad);
-  if (t1.currentProgress <= 50.0) {
+  const pDest1 = t1.state === "DIVERTED" ? pPlant : (simState.contract.mandiId === "Mandi_Ghazipur" ? pGhaz : (simState.contract.mandiId === "Processor_KetchupCo" ? pPlant : pAzad));
+  if (t1.state === "STALLED" || simState.contract.transporterId === "Truck_HR02") {
+    // If DL01 is stalled or if HR02 took over the contract, DL01 stays parked at NH-44 breakdown pad
+    x1 = pJunc.x - 22;
+    y1 = pJunc.y - 12;
+    t1.state = "STALLED";
+  } else if (t1.state === "DELIVERED") {
+    // Dock Bay 1: Parked on West unloading bay of destination node
+    x1 = pDest1.x - 48;
+    y1 = pDest1.y - 28;
+  } else if (t1.currentProgress <= 50.0) {
     const factor = Math.max(0.0, Math.min(1.0, t1.currentProgress / 50.0));
     x1 = pFarm.x + (pJunc.x - pFarm.x) * factor;
-    y1 = pFarm.y + (pJunc.y - pFarm.y) * factor;
+    y1 = pFarm.y + (pJunc.y - pFarm.y) * factor - 4; // Lane 1 offset
   } else {
     const factor = Math.max(0.0, Math.min(1.0, (t1.currentProgress - 50.0) / 50.0));
     x1 = pJunc.x + (pDest1.x - pJunc.x) * factor;
-    y1 = pJunc.y + (pDest1.y - pJunc.y) * factor;
+    y1 = pJunc.y + (pDest1.y - pJunc.y) * factor - 4;
   }
 
   // 2. Calculate Truck HR02 Coordinates
   let x2, y2;
-  const pDest2 = simState.contract.mandiId === "Mandi_Ghazipur" ? pGhaz : pAzad;
+  const isBatch2 = (simState.contract2.state === "COMMITTED" && simState.contract2.transporterId === "Truck_HR02");
+  const pDest2 = simState.nodes[simState.contract2.mandiId] || simState.nodes["Mandi_Ghazipur"];
+  const pDestPeer = t2.state === "DIVERTED" ? pPlant : (simState.contract.mandiId === "Mandi_Ghazipur" ? pGhaz : (simState.contract.mandiId === "Processor_KetchupCo" ? pPlant : pAzad));
+  const pDestFinal2 = isBatch2 ? pDest2 : pDestPeer;
+
   if (t2.state === "IDLE") {
-    // Parked beside NH44 junction
-    x2 = pJunc.x + 22;
-    y2 = pJunc.y + 22;
+    // Parked beside NH44 junction standby pad
+    x2 = pJunc.x + 24;
+    y2 = pJunc.y + 24;
+  } else if (t2.state === "DELIVERED") {
+    // Dock Bay 2: Parked on East unloading bay of destination node
+    x2 = pDestFinal2.x + 48;
+    y2 = pDestFinal2.y - 28;
+  } else if (isBatch2) {
+    // Multi-Harvest Batch 2 en route from Farm_Sonipat to Ghazipur
+    if (t2.currentProgress <= 50.0) {
+      const factor = Math.max(0.0, Math.min(1.0, t2.currentProgress / 50.0));
+      x2 = pFarm.x + (pJunc.x - pFarm.x) * factor + 4;
+      y2 = pFarm.y + (pJunc.y - pFarm.y) * factor + 6; // Lane 2 offset
+    } else {
+      const factor = Math.max(0.0, Math.min(1.0, (t2.currentProgress - 50.0) / 50.0));
+      x2 = pJunc.x + (pDest2.x - pJunc.x) * factor;
+      y2 = pJunc.y + (pDest2.y - pJunc.y) * factor + 4;
+    }
   } else {
-    // In active transit from NH44 Junction to Mandi
+    // In active transit from NH44 Junction to destination (Peer Takeover / Divert)
     const factor = Math.max(0.0, Math.min(1.0, (t2.currentProgress - 50.0) / 50.0));
-    x2 = pJunc.x + (pDest2.x - pJunc.x) * factor;
-    y2 = pJunc.y + (pDest2.y - pJunc.y) * factor;
+    x2 = pJunc.x + (pDestFinal2.x - pJunc.x) * factor;
+    y2 = pJunc.y + (pDestFinal2.y - pJunc.y) * factor + 4;
   }
 
   // 3. Draw Cargo Handoff Transfer Beam if breakdown occurred
-  if (t1.state === "STALLED" && (t2.state === "EN_ROUTE" || t2.state === "DELIVERED")) {
+  if (t1.state === "STALLED" && (t2.state === "EN_ROUTE" || t2.state === "DIVERTED" || t2.state === "DELIVERED")) {
     const beam = document.createElementNS("http://www.w3.org/2000/svg", "line");
     beam.setAttribute("x1", x1);
     beam.setAttribute("y1", y1);
@@ -439,6 +631,30 @@ function updateTruckPosition() {
     beam.setAttribute("stroke-dasharray", "6 4");
     beam.setAttribute("class", "handoff-beam");
     trucksGroup.appendChild(beam);
+  }
+
+  // Draw Docking Tether Lines to Destination Center when trucks are safely parked in bays
+  if (t1.state === "DELIVERED" && simState.contract.transporterId === "Truck_DL01") {
+    const dock1 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    dock1.setAttribute("x1", x1);
+    dock1.setAttribute("y1", y1);
+    dock1.setAttribute("x2", pDest1.x);
+    dock1.setAttribute("y2", pDest1.y);
+    dock1.setAttribute("stroke", "rgba(16, 185, 129, 0.45)");
+    dock1.setAttribute("stroke-width", "1.5");
+    dock1.setAttribute("stroke-dasharray", "3 3");
+    trucksGroup.appendChild(dock1);
+  }
+  if (t2.state === "DELIVERED") {
+    const dock2 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    dock2.setAttribute("x1", x2);
+    dock2.setAttribute("y1", y2);
+    dock2.setAttribute("x2", pDestFinal2.x);
+    dock2.setAttribute("y2", pDestFinal2.y);
+    dock2.setAttribute("stroke", "rgba(52, 211, 153, 0.45)");
+    dock2.setAttribute("stroke-width", "1.5");
+    dock2.setAttribute("stroke-dasharray", "3 3");
+    trucksGroup.appendChild(dock2);
   }
 
   // 4. Render Truck DL01
@@ -480,7 +696,43 @@ function updateTruckPosition() {
     lbl.setAttribute("font-weight", "bold");
     lbl.textContent = "⚠️ DL01 (STALLED)";
     g1.appendChild(lbl);
+  } else if (t1.state === "DELIVERED") {
+    // Dedicated Dock Bay 1 Styling (West Bay)
+    const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    halo.setAttribute("r", "13");
+    halo.setAttribute("fill", "rgba(16, 185, 129, 0.3)");
+    g1.appendChild(halo);
+
+    const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    pin.setAttribute("r", "6.5");
+    pin.setAttribute("fill", "#10b981");
+    pin.setAttribute("stroke", "#ffffff");
+    pin.setAttribute("stroke-width", "1.5");
+    g1.appendChild(pin);
+
+    const badge = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    badge.setAttribute("x", "-44");
+    badge.setAttribute("y", "-28");
+    badge.setAttribute("width", "88");
+    badge.setAttribute("height", "18");
+    badge.setAttribute("rx", "4");
+    badge.setAttribute("fill", "#091428");
+    badge.setAttribute("stroke", "#10b981");
+    badge.setAttribute("stroke-width", "1.4");
+    badge.setAttribute("filter", "drop-shadow(0 2px 5px rgba(0,0,0,0.7))");
+    g1.appendChild(badge);
+
+    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lbl.setAttribute("x", "0");
+    lbl.setAttribute("y", "-15");
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.setAttribute("fill", "#6ee7b7");
+    lbl.setAttribute("font-size", "9.5");
+    lbl.setAttribute("font-weight", "700");
+    lbl.textContent = "✅ DL01 Done";
+    g1.appendChild(lbl);
   } else {
+    // En Route / Diverted
     const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     halo.setAttribute("r", "13");
     halo.setAttribute("fill", t1.state === "DIVERTED" ? "rgba(245, 158, 11, 0.3)" : "rgba(16, 185, 129, 0.2)");
@@ -488,15 +740,15 @@ function updateTruckPosition() {
 
     const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     pin.setAttribute("r", "6.5");
-    pin.setAttribute("fill", t1.state === "DIVERTED" ? "#f59e0b" : (t1.state === "DELIVERED" ? "#10b981" : "#10b981"));
+    pin.setAttribute("fill", t1.state === "DIVERTED" ? "#f59e0b" : "#10b981");
     pin.setAttribute("stroke", "#ffffff");
     pin.setAttribute("stroke-width", "1.5");
     g1.appendChild(pin);
 
     const badge = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    badge.setAttribute("x", "-35");
+    badge.setAttribute("x", "-40");
     badge.setAttribute("y", "-28");
-    badge.setAttribute("width", "70");
+    badge.setAttribute("width", "80");
     badge.setAttribute("height", "16");
     badge.setAttribute("rx", "3");
     badge.setAttribute("fill", "#0f172a");
@@ -511,12 +763,12 @@ function updateTruckPosition() {
     lbl.setAttribute("fill", "#e2e8f0");
     lbl.setAttribute("font-size", "9.5");
     lbl.setAttribute("font-weight", "600");
-    lbl.textContent = t1.state === "DELIVERED" ? "✅ DL01 Done" : `🚚 DL01 (${t1.currentProgress.toFixed(0)}%)`;
+    lbl.textContent = `🚚 DL01 (${t1.currentProgress.toFixed(0)}%)`;
     g1.appendChild(lbl);
   }
   trucksGroup.appendChild(g1);
 
-  // 5. Render Truck HR02 (Peer Standby / Takeover)
+  // 5. Render Truck HR02 (Peer Standby / Takeover / Batch 2)
   const g2 = document.createElementNS("http://www.w3.org/2000/svg", "g");
   g2.setAttribute("transform", `translate(${x2}, ${y2})`);
 
@@ -568,24 +820,75 @@ function updateTruckPosition() {
     lbl.setAttribute("fill", "#a7f3d0");
     lbl.setAttribute("font-size", "10");
     lbl.setAttribute("font-weight", "bold");
-    lbl.textContent = `🚛 HR02: TAKEOVER (${t2.currentProgress.toFixed(0)}%)`;
+    lbl.textContent = isBatch2 ? `🚛 HR02 (BATCH 2: ${t2.currentProgress.toFixed(0)}%)` : `🚛 HR02: TAKEOVER (${t2.currentProgress.toFixed(0)}%)`;
     g2.appendChild(lbl);
-  } else if (t2.state === "DELIVERED") {
+  } else if (t2.state === "DIVERTED") {
+    const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    halo.setAttribute("r", "16");
+    halo.setAttribute("fill", "rgba(245, 158, 11, 0.35)");
+    g2.appendChild(halo);
+
     const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    pin.setAttribute("r", "8");
-    pin.setAttribute("fill", "#10b981");
+    pin.setAttribute("r", "7.5");
+    pin.setAttribute("fill", "#f59e0b");
     pin.setAttribute("stroke", "#ffffff");
     pin.setAttribute("stroke-width", "2");
     g2.appendChild(pin);
 
+    const badge = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    badge.setAttribute("x", "-52");
+    badge.setAttribute("y", "-32");
+    badge.setAttribute("width", "104");
+    badge.setAttribute("height", "18");
+    badge.setAttribute("rx", "4");
+    badge.setAttribute("fill", "#2a1a08");
+    badge.setAttribute("stroke", "#f59e0b");
+    badge.setAttribute("stroke-width", "1.5");
+    g2.appendChild(badge);
+
     const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
     lbl.setAttribute("x", "0");
-    lbl.setAttribute("y", "-16");
+    lbl.setAttribute("y", "-19");
     lbl.setAttribute("text-anchor", "middle");
-    lbl.setAttribute("fill", "#34d399");
+    lbl.setAttribute("fill", "#fcd34d");
     lbl.setAttribute("font-size", "10");
     lbl.setAttribute("font-weight", "bold");
-    lbl.textContent = "✅ HR02 (Delivered)";
+    lbl.textContent = `🚛 HR02: DIVERTED (${t2.currentProgress.toFixed(0)}%)`;
+    g2.appendChild(lbl);
+  } else if (t2.state === "DELIVERED") {
+    // Dedicated Dock Bay 2 Styling (East Bay)
+    const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    halo.setAttribute("r", "13");
+    halo.setAttribute("fill", "rgba(52, 211, 153, 0.3)");
+    g2.appendChild(halo);
+
+    const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    pin.setAttribute("r", "6.5");
+    pin.setAttribute("fill", "#059669");
+    pin.setAttribute("stroke", "#ffffff");
+    pin.setAttribute("stroke-width", "1.5");
+    g2.appendChild(pin);
+
+    const badge = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    badge.setAttribute("x", "-46");
+    badge.setAttribute("y", "-28");
+    badge.setAttribute("width", "92");
+    badge.setAttribute("height", "18");
+    badge.setAttribute("rx", "4");
+    badge.setAttribute("fill", "#091428");
+    badge.setAttribute("stroke", "#34d399");
+    badge.setAttribute("stroke-width", "1.4");
+    badge.setAttribute("filter", "drop-shadow(0 2px 5px rgba(0,0,0,0.7))");
+    g2.appendChild(badge);
+
+    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lbl.setAttribute("x", "0");
+    lbl.setAttribute("y", "-15");
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.setAttribute("fill", "#34d399");
+    lbl.setAttribute("font-size", "9.5");
+    lbl.setAttribute("font-weight", "700");
+    lbl.textContent = isBatch2 ? "✅ HR02 (B2 Done)" : "✅ HR02 Done";
     g2.appendChild(lbl);
   }
   trucksGroup.appendChild(g2);
@@ -606,14 +909,15 @@ function injectMandiGlut() {
   simState.contract.mandiId = newMandi;
   simState.contract.version++;
 
-  // Update Route UI
-  const edgeAzad = document.getElementById('edge_NH44_Junction_Mandi_Azadpur');
-  if (edgeAzad) edgeAzad.className.baseVal = "map-edge";
+  const isPeerActive = (simState.contract.transporterId === "Truck_HR02");
+  if (isPeerActive) {
+    document.getElementById('truck2StandbyText').textContent = "Mandi Glut at Azadpur! Rerouted ➔ Mandi Ghazipur";
+  } else {
+    document.getElementById('truck1RouteText').textContent = "Farm_Sonipat ➔ Ghazipur";
+  }
 
-  const edgeGhaz = document.getElementById('edge_NH44_Junction_Mandi_Ghazipur');
-  if (edgeGhaz) edgeGhaz.className.baseVal = "map-edge active-route reroute";
-
-  document.getElementById('truck1RouteText').textContent = "Farm_Sonipat ➔ Ghazipur";
+  // Update Route UI highlights
+  updateRouteHighlights();
 
   // Update Recovery Card
   document.getElementById('recStrategyName').textContent = "DynamicReroutingRecovery (v" + simState.contract.version + ")";
@@ -627,7 +931,6 @@ function injectMandiGlut() {
   logEvent("RECOVERY", "REROUTE", `DynamicReroutingRecovery: Diverted from ${oldMandi} to ${newMandi}. Slot rebound (contract v${simState.contract.version})`);
   
   updateInvariantMonitor();
-  initRoadMap();
   updateTruckPosition();
 
   if (!simState.running) {
@@ -640,11 +943,8 @@ function injectTruckBreakdown() {
   const t1 = simState.trucks[0];
   const t2 = simState.trucks[1];
 
-  // If truck hasn't reached NH-44 rendezvous yet, advance it to breakdown point
-  if (t1.currentProgress < 50.0) {
-    t1.currentProgress = 50.0;
-  }
-
+  // Station DL01 breakdown point at NH-44 Junction rendezvous (50.0%)
+  t1.currentProgress = 50.0;
   t1.state = "STALLED";
   document.getElementById('truck1StateBadge').className = "truck-state-badge stalled";
   document.getElementById('truck1StateBadge').textContent = "STALLED (ENGINE FAILURE)";
@@ -682,6 +982,7 @@ function injectTruckBreakdown() {
     logEvent("RECOVERY", "PEER_HANDOFF", `PeerHandoffRecovery: Cargo manifest handed off from Truck_DL01 to Truck_HR02 at NH44 (contract v${simState.contract.version})`);
     
     updateInvariantMonitor();
+    updateRouteHighlights();
     updateTruckPosition();
 
     // Auto-resume simulation so peer truck visibly drives towards destination
@@ -694,12 +995,27 @@ function injectTruckBreakdown() {
 function injectHighwayJam() {
   playAlertChime(false);
   const t1 = simState.trucks[0];
-  if (t1.currentProgress < 50.0) {
-    t1.currentProgress = 50.0;
+  const t2 = simState.trucks[1];
+
+  // Check which transporter currently holds the cargo contract
+  const isPeerActive = (simState.contract.transporterId === "Truck_HR02");
+
+  if (isPeerActive) {
+    // DL01 is broken down at NH-44. It must stay STALLED!
+    // HR02 is carrying the harvest: divert HR02 to Processor_KetchupCo
+    if (t2.currentProgress < 50.0) t2.currentProgress = 50.0;
+    t2.state = "DIVERTED";
+    document.getElementById('truck2StateBadge').className = "truck-state-badge diverted";
+    document.getElementById('truck2StateBadge').textContent = "DIVERTED (FACTORY)";
+    document.getElementById('truck2StandbyText').textContent = "Highway Jam at NH-44! Diverted to KetchupCo Factory (15km)";
+  } else {
+    // DL01 is the active transporter
+    if (t1.currentProgress < 50.0) t1.currentProgress = 50.0;
+    t1.state = "DIVERTED";
+    document.getElementById('truck1StateBadge').className = "truck-state-badge diverted";
+    document.getElementById('truck1StateBadge').textContent = "DIVERTED (FACTORY)";
+    document.getElementById('truck1RouteText').textContent = "NH44_Junction ➔ Processor_KetchupCo";
   }
-  t1.state = "DIVERTED";
-  document.getElementById('truck1StateBadge').className = "truck-state-badge diverted";
-  document.getElementById('truck1StateBadge').textContent = "DIVERTED (FACTORY)";
 
   // Quality drops to 0.55 breaching 0.60 mandi floor
   simState.batch.currentQuality = 0.55;
@@ -712,14 +1028,8 @@ function injectHighwayJam() {
   simState.contract.hasGateSlot = false; // Mandi slot released
   simState.contract.version++;
 
-  document.getElementById('truck1RouteText').textContent = "NH44_Junction ➔ Processor_KetchupCo";
-
-  // Re-route on map
-  const edgeAzad = document.getElementById('edge_NH44_Junction_Mandi_Azadpur');
-  if (edgeAzad) edgeAzad.className.baseVal = "map-edge";
-
-  const edgePlant = document.getElementById('edge_NH44_Junction_Processor_KetchupCo');
-  if (edgePlant) edgePlant.className.baseVal = "map-edge active-route reroute";
+  // Update Route UI
+  updateRouteHighlights();
 
   document.getElementById('recStrategyName').textContent = "DistressAuctionRecovery (v" + simState.contract.version + ")";
   document.getElementById('recStatusBadge').textContent = "Distress Diversion";
@@ -797,7 +1107,27 @@ function completeContractDelivery(truck) {
   speakHinglishAlert(`Mubarak ho! Fasal ${destName} safaltapoorvak pahunch gayi hai. Escrow bhuqtaan transporter ko jaari kiya gaya.`);
   logEvent("INFO", "CONTRACT_FULFILLED", `Contract ${simState.contract.id} completed by ${truck.id} at ${destName}. Escrow disbursed, zero resources leaked.`);
   updateInvariantMonitor();
-  pauseSimulation();
+  if (simState.contract2.state !== "COMMITTED") {
+    pauseSimulation();
+  }
+}
+
+function completeBatch2Delivery(truck) {
+  simState.contract2.state = "COMPLETED";
+  simState.contract2.hasTruckLock = false;
+  simState.contract2.hasGateSlot = false;
+  simState.contract2.hasEscrow = false;
+
+  document.getElementById('truck2StateBadge').className = "truck-state-badge completed";
+  document.getElementById('truck2StateBadge').textContent = "FULFILLED (BATCH 2 DELIVERED)";
+  document.getElementById('truck2StandbyText').textContent = "40q Onion delivered safely to Ghazipur Mandi. Transporter escrow disbursed.";
+
+  speakHinglishAlert("Mubarak ho! Doosri fasal (Batch 2: 40q Pyaaz) safaltapoorvak Ghazipur mandi pahunch gayi hai. Escrow bhuqtaan jaari kiya gaya.");
+  logEvent("INFO", "CONTRACT_FULFILLED", `Concurrent Batch 2 (CTR-102) completed by ${truck.id} at Mandi_Ghazipur. Escrow disbursed, zero resources leaked.`);
+  updateInvariantMonitor();
+  if (simState.contract.state === "COMPLETED" || simState.contract.state === "ABORTED") {
+    pauseSimulation();
+  }
 }
 
 function tickSimulation(stepMinutes = 15) {
@@ -819,8 +1149,8 @@ function tickSimulation(stepMinutes = 15) {
   const t1 = simState.trucks[0];
   const t2 = simState.trucks[1];
 
-  // 1. Progress Truck DL01 if active
-  if (t1.state === "EN_ROUTE" || t1.state === "DIVERTED") {
+  // 1. Progress Truck DL01 if active and holding the contract
+  if ((t1.state === "EN_ROUTE" || t1.state === "DIVERTED") && simState.contract.transporterId === "Truck_DL01") {
     t1.currentProgress = Math.min(100.0, t1.currentProgress + (stepMinutes * 0.45));
     document.getElementById('truck1ProgressBar').style.width = `${t1.currentProgress}%`;
     const remainingPct = 100 - t1.currentProgress;
@@ -832,17 +1162,27 @@ function tickSimulation(stepMinutes = 15) {
     }
   }
 
-  // 2. Progress Truck HR02 if active (Peer Handoff)
-  if (t2.state === "EN_ROUTE") {
+  // 2. Progress Truck HR02 if active (en route or diverted)
+  if (t2.state === "EN_ROUTE" || t2.state === "DIVERTED") {
     t2.currentProgress = Math.min(100.0, t2.currentProgress + (stepMinutes * 0.45));
     document.getElementById('truck2ProgressBar').style.width = `${t2.currentProgress}%`;
     const remainingPct = 100 - t2.currentProgress;
     const etaMins = Math.max(0, Math.round(remainingPct * 3.6));
-    document.getElementById('truck2StandbyText').textContent = `Taking over: ${t2.currentProgress.toFixed(0)}% en route ➔ ${simState.contract.mandiId.replace('_', ' ')} (ETA: ${etaMins}m)`;
 
-    if (t2.currentProgress >= 100.0 && simState.contract.state !== "COMPLETED") {
-      t2.state = "DELIVERED";
-      completeContractDelivery(t2);
+    if (simState.contract2.state === "COMMITTED") {
+      document.getElementById('truck2StandbyText').textContent = `Batch 2 (40q Onion): ${t2.currentProgress.toFixed(0)}% en route ➔ Ghazipur (ETA: ${etaMins}m)`;
+      if (t2.currentProgress >= 100.0 && simState.contract2.state !== "COMPLETED") {
+        t2.state = "DELIVERED";
+        completeBatch2Delivery(t2);
+      }
+    } else {
+      const destLabel = simState.contract.mandiId === "Processor_KetchupCo" ? "Mother Dairy Plant" : simState.contract.mandiId.replace('_', ' ');
+      const actionLabel = t2.state === "DIVERTED" ? "Diverting to Factory" : "Taking over";
+      document.getElementById('truck2StandbyText').textContent = `${actionLabel}: ${t2.currentProgress.toFixed(0)}% en route ➔ ${destLabel} (ETA: ${etaMins}m)`;
+      if (t2.currentProgress >= 100.0 && simState.contract.state !== "COMPLETED") {
+        t2.state = "DELIVERED";
+        completeContractDelivery(t2);
+      }
     }
   }
 
@@ -926,6 +1266,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('truck2StateBadge').textContent = 'IDLE (STANDBY)';
     document.getElementById('truck2StandbyText').textContent = 'Ready for Peer Handoff';
 
+    simState.contract2.state = "IDLE";
+    simState.contract2.version = 1;
+    simState.contract2.hasTruckLock = false;
+    simState.contract2.hasGateSlot = false;
+    simState.contract2.hasEscrow = false;
+
+    const inspector = document.getElementById('nodeInspectorCard');
+    if (inspector) inspector.classList.add('hidden');
+
     document.getElementById('recStrategyName').textContent = 'Ready (No Active Disruptions)';
     document.getElementById('recStatusBadge').textContent = 'Idle';
     document.getElementById('recStatusBadge').style.background = '';
@@ -934,6 +1283,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initRoadMap();
     updateInvariantMonitor();
+    updateTruckPosition();
     updateProduceCard("Tomato", 25.0);
     logEvent("INFO", "SIMULATION", "Simulation reset to initial T+120m benchmark state.");
   });
@@ -1230,6 +1580,52 @@ function stopMicVisualizer() {
     speakHinglishAlert("Aadesh radd kar diya gaya hai. Sabhi resource locks release ho chuke hain.");
     logEvent("ROLLBACK", "2PC_ABORT", "Farmer cancelled request. Reverse compensation executed with zero leaks.");
   });
+
+  // Option 1: Concurrent Multi-Harvest Batch 2 Dispatch
+  const btnBatch2 = document.getElementById('btnDispatchBatch2');
+  if (btnBatch2) {
+    btnBatch2.addEventListener('click', () => {
+      simState.contract2.state = "COMMITTED";
+      simState.contract2.hasTruckLock = true;
+      simState.contract2.hasGateSlot = true;
+      simState.contract2.hasEscrow = true;
+      simState.contract2.version = 1;
+      simState.contract2.mandiId = "Mandi_Ghazipur";
+
+      const t2 = simState.trucks[1];
+      t2.state = "EN_ROUTE";
+      t2.currentProgress = 0.0;
+      t2.routeText = "Farm_Sonipat ➔ Ghazipur";
+
+      document.getElementById('truck2StateBadge').className = "truck-state-badge enroute";
+      document.getElementById('truck2StateBadge').textContent = "EN_ROUTE (BATCH 2: 40q ONION)";
+      document.getElementById('truck2ProgressBar').style.width = "0%";
+      document.getElementById('truck2StandbyText').textContent = "Batch 2: 40.0q Onion en route to Ghazipur Mandi";
+
+      // Highlight routes on map
+      const edgeAzad = document.getElementById('edge_NH44_Junction_Mandi_Azadpur');
+      const edgeGhaz = document.getElementById('edge_NH44_Junction_Mandi_Ghazipur');
+      if (edgeAzad && simState.contract.mandiId === "Mandi_Azadpur") edgeAzad.className.baseVal = "map-edge active-route";
+      if (edgeGhaz) edgeGhaz.className.baseVal = "map-edge active-route";
+
+      updateInvariantMonitor();
+      updateTruckPosition();
+
+      speakHinglishAlert("Doosri fasal (Batch 2: 40q Pyaaz) Ghazipur Mandi ke liye Truck HR02 ke saath dispatch ho chuki hai.");
+      logEvent("INFO", "CNP_2PC", "Multi-Harvest Batch 2 (CTR-102: 40q Onion) committed atomically to Truck_HR02 for Mandi_Ghazipur. 2 concurrent shipments active!");
+
+      startSimulation();
+    });
+  }
+
+  // Option 3: Node Inspector Close Button
+  const closeInspBtn = document.getElementById('btnCloseInspector');
+  if (closeInspBtn) {
+    closeInspBtn.addEventListener('click', () => {
+      const inspector = document.getElementById('nodeInspectorCard');
+      if (inspector) inspector.classList.add('hidden');
+    });
+  }
 
   // Fault Injections
   document.getElementById('btnInjectGlut').addEventListener('click', injectMandiGlut);

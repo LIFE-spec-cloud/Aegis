@@ -170,6 +170,9 @@
             </button>
             <button id="btnCancel2PC" class="btn-secondary-action">Radd Karein (Cancel)</button>
           </div>
+          <button id="btnDispatchBatch2" class="btn-batch2-action" title="Dispatch concurrent harvest batch simultaneously">
+            ➕ Doosri Fasal Bhejein (Dispatch Batch 2: 40q Pyaaz ➔ Ghazipur)
+          </button>
         </div>
 
         <!-- DTMF Telephone Numpad -->
@@ -242,6 +245,36 @@
             <!-- Active trucks with pulsing halos -->
           </g>
         </svg>
+
+        <!-- Interactive Node Inspector Drawer (Option 3) -->
+        <div id="nodeInspectorCard" class="node-inspector-card hidden">
+          <div class="node-inspector-header">
+            <div class="node-title-group">
+              <span id="inspectNodeType" class="badge-node-type">APMC MANDI</span>
+              <h3 id="inspectNodeTitle">Mandi Azadpur</h3>
+            </div>
+            <button id="btnCloseInspector" class="btn-close-inspector" title="Close Inspector">✕</button>
+          </div>
+          <p id="inspectNodeDesc" class="node-inspector-desc">Asia's largest wholesale fruits & vegetables market.</p>
+          <div class="node-stats-grid">
+            <div class="stat-tile">
+              <span class="stat-label">Live Price</span>
+              <strong id="inspectNodePrice" class="stat-val">₹2,200/qtl</strong>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-label">Dock Occupancy</span>
+              <strong id="inspectNodeOccupancy" class="stat-val">2 / 5 Docks</strong>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-label">Operating Window</span>
+              <strong id="inspectNodeWindow" class="stat-val">04:00 - 08:00 AM</strong>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-label">Active Transit</span>
+              <strong id="inspectNodeInbound" class="stat-val">Truck_DL01 En Route</strong>
+            </div>
+          </div>
+        </div>
 
         <!-- Transit Status Lane Panel (Overlay) -->
         <div class="truck-lanes-panel">
@@ -430,6 +463,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=full_audit_v4"></script>
+  <script src="app.js?v=state_machine_v8"></script>
 </body>
 </html>
