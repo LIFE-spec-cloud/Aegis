@@ -391,62 +391,204 @@ function updateTruckPosition() {
 
   trucksGroup.innerHTML = '';
 
-  simState.trucks.forEach(t => {
-    let x, y;
-    if (t.id === "Truck_DL01") {
-      const pFarm = simState.nodes["Farm_Sonipat"];
-      const pJunc = simState.nodes["NH44_Junction"];
-      const pAzad = simState.nodes["Mandi_Azadpur"];
-      const pGhaz = simState.nodes["Mandi_Ghazipur"];
-      const pPlant = simState.nodes["Processor_KetchupCo"];
+  const t1 = simState.trucks[0];
+  const t2 = simState.trucks[1];
 
-      if (t.state === "DIVERTED" && simState.contract.mandiId === "Processor_KetchupCo") {
-        // Moving from junction to plant
-        const factor = Math.min(1.0, (t.currentProgress - 50) / 50.0);
-        x = pJunc.x + (pPlant.x - pJunc.x) * factor;
-        y = pJunc.y + (pPlant.y - pJunc.y) * factor;
-      } else if (simState.contract.mandiId === "Mandi_Ghazipur") {
-        // Rerouted to Ghazipur
-        const factor = Math.min(1.0, (t.currentProgress - 50) / 50.0);
-        x = pJunc.x + (pGhaz.x - pJunc.x) * factor;
-        y = pJunc.y + (pGhaz.y - pJunc.y) * factor;
-      } else {
-        // En route Farm -> Azadpur
-        if (t.currentProgress <= 50) {
-          const factor = t.currentProgress / 50.0;
-          x = pFarm.x + (pJunc.x - pFarm.x) * factor;
-          y = pFarm.y + (pJunc.y - pFarm.y) * factor;
-        } else {
-          const factor = (t.currentProgress - 50.0) / 50.0;
-          x = pJunc.x + (pAzad.x - pJunc.x) * factor;
-          y = pJunc.y + (pAzad.y - pJunc.y) * factor;
-        }
-      }
-    } else {
-      // Truck HR02 (Standby at NH44 Junction)
-      x = simState.nodes["NH44_Junction"].x + 15;
-      y = simState.nodes["NH44_Junction"].y + 15;
-    }
+  const pFarm = simState.nodes["Farm_Sonipat"];
+  const pJunc = simState.nodes["NH44_Junction"];
+  const pAzad = simState.nodes["Mandi_Azadpur"];
+  const pGhaz = simState.nodes["Mandi_Ghazipur"];
+  const pPlant = simState.nodes["Processor_KetchupCo"];
 
-    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    g.setAttribute("transform", `translate(${x}, ${y})`);
+  // 1. Calculate Truck DL01 Coordinates
+  let x1, y1;
+  const pDest1 = t1.state === "DIVERTED" ? pPlant : (simState.contract.mandiId === "Mandi_Ghazipur" ? pGhaz : pAzad);
+  if (t1.currentProgress <= 50.0) {
+    const factor = Math.max(0.0, Math.min(1.0, t1.currentProgress / 50.0));
+    x1 = pFarm.x + (pJunc.x - pFarm.x) * factor;
+    y1 = pFarm.y + (pJunc.y - pFarm.y) * factor;
+  } else {
+    const factor = Math.max(0.0, Math.min(1.0, (t1.currentProgress - 50.0) / 50.0));
+    x1 = pJunc.x + (pDest1.x - pJunc.x) * factor;
+    y1 = pJunc.y + (pDest1.y - pJunc.y) * factor;
+  }
 
-    // Subtle halo
+  // 2. Calculate Truck HR02 Coordinates
+  let x2, y2;
+  const pDest2 = simState.contract.mandiId === "Mandi_Ghazipur" ? pGhaz : pAzad;
+  if (t2.state === "IDLE") {
+    // Parked beside NH44 junction
+    x2 = pJunc.x + 22;
+    y2 = pJunc.y + 22;
+  } else {
+    // In active transit from NH44 Junction to Mandi
+    const factor = Math.max(0.0, Math.min(1.0, (t2.currentProgress - 50.0) / 50.0));
+    x2 = pJunc.x + (pDest2.x - pJunc.x) * factor;
+    y2 = pJunc.y + (pDest2.y - pJunc.y) * factor;
+  }
+
+  // 3. Draw Cargo Handoff Transfer Beam if breakdown occurred
+  if (t1.state === "STALLED" && (t2.state === "EN_ROUTE" || t2.state === "DELIVERED")) {
+    const beam = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    beam.setAttribute("x1", x1);
+    beam.setAttribute("y1", y1);
+    beam.setAttribute("x2", x2);
+    beam.setAttribute("y2", y2);
+    beam.setAttribute("stroke", "#f59e0b");
+    beam.setAttribute("stroke-width", "2.5");
+    beam.setAttribute("stroke-dasharray", "6 4");
+    beam.setAttribute("class", "handoff-beam");
+    trucksGroup.appendChild(beam);
+  }
+
+  // 4. Render Truck DL01
+  const g1 = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g1.setAttribute("transform", `translate(${x1}, ${y1})`);
+
+  if (t1.state === "STALLED") {
+    // Red pulsing hazard halo
     const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    halo.setAttribute("r", "12");
-    halo.setAttribute("fill", t.state === "STALLED" ? "rgba(239, 68, 68, 0.25)" : "rgba(16, 185, 129, 0.2)");
+    halo.setAttribute("r", "18");
+    halo.setAttribute("fill", "rgba(239, 68, 68, 0.4)");
+    halo.setAttribute("class", "pulse-halo-stall");
+    g1.appendChild(halo);
 
-    // Truck pin
     const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    pin.setAttribute("r", "6");
-    pin.setAttribute("fill", t.state === "STALLED" ? "#ef4444" : "#10b981");
+    pin.setAttribute("r", "8");
+    pin.setAttribute("fill", "#ef4444");
+    pin.setAttribute("stroke", "#ffffff");
+    pin.setAttribute("stroke-width", "2");
+    g1.appendChild(pin);
+
+    const badge = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    badge.setAttribute("x", "-52");
+    badge.setAttribute("y", "-32");
+    badge.setAttribute("width", "104");
+    badge.setAttribute("height", "18");
+    badge.setAttribute("rx", "4");
+    badge.setAttribute("fill", "#1e131d");
+    badge.setAttribute("stroke", "#ef4444");
+    badge.setAttribute("stroke-width", "1.5");
+    g1.appendChild(badge);
+
+    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lbl.setAttribute("x", "0");
+    lbl.setAttribute("y", "-19");
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.setAttribute("fill", "#fca5a5");
+    lbl.setAttribute("font-size", "10");
+    lbl.setAttribute("font-weight", "bold");
+    lbl.textContent = "⚠️ DL01 (STALLED)";
+    g1.appendChild(lbl);
+  } else {
+    const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    halo.setAttribute("r", "13");
+    halo.setAttribute("fill", t1.state === "DIVERTED" ? "rgba(245, 158, 11, 0.3)" : "rgba(16, 185, 129, 0.2)");
+    g1.appendChild(halo);
+
+    const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    pin.setAttribute("r", "6.5");
+    pin.setAttribute("fill", t1.state === "DIVERTED" ? "#f59e0b" : (t1.state === "DELIVERED" ? "#10b981" : "#10b981"));
     pin.setAttribute("stroke", "#ffffff");
     pin.setAttribute("stroke-width", "1.5");
+    g1.appendChild(pin);
 
-    g.appendChild(halo);
-    g.appendChild(pin);
-    trucksGroup.appendChild(g);
-  });
+    const badge = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    badge.setAttribute("x", "-35");
+    badge.setAttribute("y", "-28");
+    badge.setAttribute("width", "70");
+    badge.setAttribute("height", "16");
+    badge.setAttribute("rx", "3");
+    badge.setAttribute("fill", "#0f172a");
+    badge.setAttribute("stroke", "#334155");
+    badge.setAttribute("stroke-width", "1");
+    g1.appendChild(badge);
+
+    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lbl.setAttribute("x", "0");
+    lbl.setAttribute("y", "-16");
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.setAttribute("fill", "#e2e8f0");
+    lbl.setAttribute("font-size", "9.5");
+    lbl.setAttribute("font-weight", "600");
+    lbl.textContent = t1.state === "DELIVERED" ? "✅ DL01 Done" : `🚚 DL01 (${t1.currentProgress.toFixed(0)}%)`;
+    g1.appendChild(lbl);
+  }
+  trucksGroup.appendChild(g1);
+
+  // 5. Render Truck HR02 (Peer Standby / Takeover)
+  const g2 = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g2.setAttribute("transform", `translate(${x2}, ${y2})`);
+
+  if (t2.state === "IDLE") {
+    const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    pin.setAttribute("r", "5.5");
+    pin.setAttribute("fill", "#475569");
+    pin.setAttribute("stroke", "#94a3b8");
+    pin.setAttribute("stroke-width", "1.5");
+    g2.appendChild(pin);
+
+    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lbl.setAttribute("x", "0");
+    lbl.setAttribute("y", "16");
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.setAttribute("fill", "#94a3b8");
+    lbl.setAttribute("font-size", "9");
+    lbl.textContent = "🚛 HR02 (Standby)";
+    g2.appendChild(lbl);
+  } else if (t2.state === "EN_ROUTE") {
+    const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    halo.setAttribute("r", "16");
+    halo.setAttribute("fill", "rgba(16, 185, 129, 0.35)");
+    halo.setAttribute("class", "pulse-halo-peer");
+    g2.appendChild(halo);
+
+    const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    pin.setAttribute("r", "7.5");
+    pin.setAttribute("fill", "#10b981");
+    pin.setAttribute("stroke", "#ffffff");
+    pin.setAttribute("stroke-width", "2");
+    g2.appendChild(pin);
+
+    const badge = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    badge.setAttribute("x", "-52");
+    badge.setAttribute("y", "-32");
+    badge.setAttribute("width", "104");
+    badge.setAttribute("height", "18");
+    badge.setAttribute("rx", "4");
+    badge.setAttribute("fill", "#064e3b");
+    badge.setAttribute("stroke", "#34d399");
+    badge.setAttribute("stroke-width", "1.5");
+    g2.appendChild(badge);
+
+    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lbl.setAttribute("x", "0");
+    lbl.setAttribute("y", "-19");
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.setAttribute("fill", "#a7f3d0");
+    lbl.setAttribute("font-size", "10");
+    lbl.setAttribute("font-weight", "bold");
+    lbl.textContent = `🚛 HR02: TAKEOVER (${t2.currentProgress.toFixed(0)}%)`;
+    g2.appendChild(lbl);
+  } else if (t2.state === "DELIVERED") {
+    const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    pin.setAttribute("r", "8");
+    pin.setAttribute("fill", "#10b981");
+    pin.setAttribute("stroke", "#ffffff");
+    pin.setAttribute("stroke-width", "2");
+    g2.appendChild(pin);
+
+    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lbl.setAttribute("x", "0");
+    lbl.setAttribute("y", "-16");
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.setAttribute("fill", "#34d399");
+    lbl.setAttribute("font-size", "10");
+    lbl.setAttribute("font-weight", "bold");
+    lbl.textContent = "✅ HR02 (Delivered)";
+    g2.appendChild(lbl);
+  }
+  trucksGroup.appendChild(g2);
 }
 
 // ============================================================================
@@ -459,10 +601,6 @@ function injectMandiGlut() {
   simState.nodes["Mandi_Azadpur"].glut = true;
   simState.nodes["Mandi_Azadpur"].occupied = 5; // full capacity
 
-  const alertMsg = "Mandi update: Azadpur mandi me aamad badhne se bhaav ₹1,320 gir gaya hai. Hysteresis threshold (gain > ₹5,000) verify hone par truck Ghazipur mandi reroute kiya ja raha hai.";
-  speakHinglishAlert(alertMsg);
-
-  // Execute DynamicReroutingRecovery
   const oldMandi = simState.contract.mandiId;
   const newMandi = "Mandi_Ghazipur";
   simState.contract.mandiId = newMandi;
@@ -473,7 +611,7 @@ function injectMandiGlut() {
   if (edgeAzad) edgeAzad.className.baseVal = "map-edge";
 
   const edgeGhaz = document.getElementById('edge_NH44_Junction_Mandi_Ghazipur');
-  if (edgeGhaz) edgeGhaz.className.baseVal = "map-edge reroute";
+  if (edgeGhaz) edgeGhaz.className.baseVal = "map-edge active-route reroute";
 
   document.getElementById('truck1RouteText').textContent = "Farm_Sonipat ➔ Ghazipur";
 
@@ -483,11 +621,18 @@ function injectMandiGlut() {
   document.getElementById('recStatusBadge').style.background = "rgba(16, 185, 129, 0.25)";
   document.getElementById('recStatusBadge').style.color = "#34d399";
   document.getElementById('recActionSummary').textContent = 
-    `Slot cleanly cancelled at Azadpur. Replacement slot reserved at Ghazipur (Quote: ₹2,100/qtl). Net gain ₹16,500 exceeds hysteresis delta ₹5,000. Old gate slot released; zero leaked resources.`;
+    `Slot cleanly cancelled at Azadpur (Glut: 5/5, Price dropped to ₹1,320). Replacement slot reserved at Ghazipur (Quote: ₹2,100/qtl). Net gain ₹16,500 exceeds hysteresis delta ₹5,000. Old gate slot released; zero leaked resources.`;
 
+  speakHinglishAlert("Mandi update: Azadpur mandi me aamad badhne se bhaav gir gaya hai. Truck Ghazipur mandi reroute kiya ja raha hai.");
   logEvent("RECOVERY", "REROUTE", `DynamicReroutingRecovery: Diverted from ${oldMandi} to ${newMandi}. Slot rebound (contract v${simState.contract.version})`);
+  
   updateInvariantMonitor();
+  initRoadMap();
   updateTruckPosition();
+
+  if (!simState.running) {
+    startSimulation();
+  }
 }
 
 function injectTruckBreakdown() {
@@ -495,20 +640,34 @@ function injectTruckBreakdown() {
   const t1 = simState.trucks[0];
   const t2 = simState.trucks[1];
 
+  // If truck hasn't reached NH-44 rendezvous yet, advance it to breakdown point
+  if (t1.currentProgress < 50.0) {
+    t1.currentProgress = 50.0;
+  }
+
   t1.state = "STALLED";
   document.getElementById('truck1StateBadge').className = "truck-state-badge stalled";
-  document.getElementById('truck1StateBadge').textContent = "STALLED (ENGINE)";
+  document.getElementById('truck1StateBadge').textContent = "STALLED (ENGINE FAILURE)";
+  document.getElementById('truck1ProgressBar').style.width = `${t1.currentProgress}%`;
+  document.getElementById('truck1ProgressBar').style.background = "#ef4444";
+  document.getElementById('truck1Eta').textContent = "STALLED";
 
-  const alertMsg = "Alert: Truck ka engine overheat hone se kharab hua hai. Nikat-tam Truck HR02 turant maal lene aa raha hai.";
-  speakHinglishAlert(alertMsg);
+  speakHinglishAlert("Alert: Truck DL01 engine overheat hone se NH-44 par kharab hua! Multi-Agent Broker peer handoff coordinate kar raha hai...");
+  logEvent("FAULT", "ENGINE_OVERHEAT", "Truck_DL01 mechanical breakdown at NH-44 Junction. Telemetry alert dispatched to Broker.");
+
+  updateTruckPosition();
 
   // Execute PeerHandoffRecovery
   setTimeout(() => {
     t2.state = "EN_ROUTE";
-    document.getElementById('truck2StateBadge').className = "truck-state-badge enroute";
-    document.getElementById('truck2StateBadge').textContent = "ACTIVE (PEER HANDOFF)";
-    document.getElementById('truck2StandbyText').textContent = "Cargo manifest transferred from Truck_DL01";
+    t2.currentProgress = 50.0; // Starts right at NH-44 Junction rendezvous
 
+    document.getElementById('truck2StateBadge').className = "truck-state-badge enroute";
+    document.getElementById('truck2StateBadge').textContent = "ACTIVE (PEER TAKEOVER)";
+    document.getElementById('truck2ProgressBar').style.width = "50%";
+    document.getElementById('truck2StandbyText').textContent = `Manifest taken over from DL01 ➔ ${simState.contract.mandiId.replace('_', ' ')}`;
+
+    // Atomic 2PC Lock Rebind
     simState.contract.transporterId = t2.id;
     simState.contract.version++;
 
@@ -517,17 +676,27 @@ function injectTruckBreakdown() {
     document.getElementById('recStatusBadge').style.background = "rgba(16, 185, 129, 0.25)";
     document.getElementById('recStatusBadge').style.color = "#34d399";
     document.getElementById('recActionSummary').textContent = 
-      `Transporter DL01 lock released. Manifest transferred to peer Truck_HR02 at rendezvous point NH44_Junction. Contract lock rebound; zero leaked locks.`;
+      `Atomic 2PC handoff: Truck_DL01 lock cleanly released. Cargo manifest & escrow rebound to peer Truck_HR02 at NH44_Junction. Mandi gate slot preserved; zero leaked locks!`;
 
+    speakHinglishAlert("Peer Handoff safal! Truck HR02 ne maal sambhal liya hai aur mandi ke liye ravana ho chuka hai.");
     logEvent("RECOVERY", "PEER_HANDOFF", `PeerHandoffRecovery: Cargo manifest handed off from Truck_DL01 to Truck_HR02 at NH44 (contract v${simState.contract.version})`);
+    
     updateInvariantMonitor();
     updateTruckPosition();
-  }, 1000);
+
+    // Auto-resume simulation so peer truck visibly drives towards destination
+    if (!simState.running) {
+      startSimulation();
+    }
+  }, 500);
 }
 
 function injectHighwayJam() {
   playAlertChime(false);
   const t1 = simState.trucks[0];
+  if (t1.currentProgress < 50.0) {
+    t1.currentProgress = 50.0;
+  }
   t1.state = "DIVERTED";
   document.getElementById('truck1StateBadge').className = "truck-state-badge diverted";
   document.getElementById('truck1StateBadge').textContent = "DIVERTED (FACTORY)";
@@ -538,9 +707,6 @@ function injectHighwayJam() {
   document.getElementById('truck1QualityText').style.color = "#f59e0b";
   updateProduceCard("Tomato", 25.0);
 
-  const alertMsg = "Kisan Bhai dhyan dein: Aapka truck highway jam me fansa hai. Tamatar kharab hone se bachane ke liye truck Mother Dairy ketchup factory bheja ja raha hai.";
-  speakHinglishAlert(alertMsg);
-
   // Execute DistressAuctionRecovery
   simState.contract.mandiId = "Processor_KetchupCo";
   simState.contract.hasGateSlot = false; // Mandi slot released
@@ -549,8 +715,11 @@ function injectHighwayJam() {
   document.getElementById('truck1RouteText').textContent = "NH44_Junction ➔ Processor_KetchupCo";
 
   // Re-route on map
+  const edgeAzad = document.getElementById('edge_NH44_Junction_Mandi_Azadpur');
+  if (edgeAzad) edgeAzad.className.baseVal = "map-edge";
+
   const edgePlant = document.getElementById('edge_NH44_Junction_Processor_KetchupCo');
-  if (edgePlant) edgePlant.className.baseVal = "map-edge reroute";
+  if (edgePlant) edgePlant.className.baseVal = "map-edge active-route reroute";
 
   document.getElementById('recStrategyName').textContent = "DistressAuctionRecovery (v" + simState.contract.version + ")";
   document.getElementById('recStatusBadge').textContent = "Distress Diversion";
@@ -559,9 +728,15 @@ function injectHighwayJam() {
   document.getElementById('recActionSummary').textContent = 
     `Mandi gate slot released immediately. Truck diverted to Processor_KetchupCo (15 km) at distress bid ₹1,850/qtl. 100% produce salvaged from spoilage; zero leaked slot locks.`;
 
+  speakHinglishAlert("Kisan Bhai dhyan dein: Highway jam se bachane ke liye truck tomato ketchup factory divert kiya gaya.");
   logEvent("RECOVERY", "DISTRESS_AUCTION", `DistressAuctionRecovery: Mandi slot freed. Diverted to Processor_KetchupCo at ₹1,850/q (contract v${simState.contract.version})`);
+  
   updateInvariantMonitor();
   updateTruckPosition();
+
+  if (!simState.running) {
+    startSimulation();
+  }
 }
 
 // ============================================================================
@@ -600,6 +775,31 @@ function logEvent(level, category, message) {
 // 9. Simulation Tick & Timeline Engine
 // ============================================================================
 
+function completeContractDelivery(truck) {
+  simState.contract.state = "COMPLETED";
+  simState.contract.hasTruckLock = false;
+  simState.contract.hasGateSlot = false;
+  simState.contract.hasEscrow = false;
+
+  if (truck.id === "Truck_DL01") {
+    document.getElementById('truck1StateBadge').className = "truck-state-badge completed";
+    document.getElementById('truck1StateBadge').textContent = "FULFILLED (DELIVERED)";
+    document.getElementById('truck1Eta').textContent = "DELIVERED";
+  } else {
+    document.getElementById('truck2StateBadge').className = "truck-state-badge completed";
+    document.getElementById('truck2StateBadge').textContent = "FULFILLED (PEER DELIVERED)";
+    document.getElementById('truck2StandbyText').textContent = "Cargo delivered safely to Mandi. Escrow payment released to Truck_HR02.";
+  }
+
+  const isPlant = simState.contract.mandiId === "Processor_KetchupCo";
+  const destName = isPlant ? "Mother Dairy Ketchup Plant (Distress Salvage)" : simState.contract.mandiId.replace('_', ' ');
+
+  speakHinglishAlert(`Mubarak ho! Fasal ${destName} safaltapoorvak pahunch gayi hai. Escrow bhuqtaan transporter ko jaari kiya gaya.`);
+  logEvent("INFO", "CONTRACT_FULFILLED", `Contract ${simState.contract.id} completed by ${truck.id} at ${destName}. Escrow disbursed, zero resources leaked.`);
+  updateInvariantMonitor();
+  pauseSimulation();
+}
+
 function tickSimulation(stepMinutes = 15) {
   simState.timeMinutes += stepMinutes;
 
@@ -608,36 +808,41 @@ function tickSimulation(stepMinutes = 15) {
   document.getElementById('simTimeDisplay').textContent = `${hrs}h : ${mins}m`;
   document.getElementById('simTickDisplay').textContent = `T+${simState.timeMinutes}m (Seed ${simState.seed})`;
 
-  // Progress moving truck
+  // Freshness decay calculation
+  const hoursElapsed = (simState.timeMinutes - simState.batch.harvestTime) / 60.0;
+  const decay = simState.batch.decayLambda * simState.batch.tempMultiplier;
+  simState.batch.currentQuality = Math.max(0.40, simState.batch.initialQuality * Math.exp(-decay * hoursElapsed));
+  document.getElementById('truck1QualityText').textContent = 
+    `${simState.batch.currentQuality.toFixed(3)} (${simState.batch.currentQuality >= 0.8 ? 'Grade A' : 'Grade B'})`;
+  updateProduceCard(simState.batch.commodity, simState.batch.volume);
+
   const t1 = simState.trucks[0];
+  const t2 = simState.trucks[1];
+
+  // 1. Progress Truck DL01 if active
   if (t1.state === "EN_ROUTE" || t1.state === "DIVERTED") {
     t1.currentProgress = Math.min(100.0, t1.currentProgress + (stepMinutes * 0.45));
     document.getElementById('truck1ProgressBar').style.width = `${t1.currentProgress}%`;
+    const remainingPct = 100 - t1.currentProgress;
+    document.getElementById('truck1Eta').textContent = `${Math.max(0, Math.round(remainingPct * 3.6))}m`;
 
-    // Calculate exponential freshness decay Q(t)
-    const hoursElapsed = (simState.timeMinutes - simState.batch.harvestTime) / 60.0;
-    const decay = simState.batch.decayLambda * simState.batch.tempMultiplier;
-    simState.batch.currentQuality = Math.max(0.40, simState.batch.initialQuality * Math.exp(-decay * hoursElapsed));
-
-    document.getElementById('truck1QualityText').textContent = 
-      `${simState.batch.currentQuality.toFixed(3)} (${simState.batch.currentQuality >= 0.8 ? 'Grade A' : 'Grade B'})`;
-
-    updateProduceCard(simState.batch.commodity, simState.batch.volume);
-
-    // If reached 100%, complete contract
     if (t1.currentProgress >= 100.0 && simState.contract.state !== "COMPLETED") {
       t1.state = "DELIVERED";
-      simState.contract.state = "COMPLETED";
-      simState.contract.hasTruckLock = false;
-      simState.contract.hasGateSlot = false;
-      simState.contract.hasEscrow = false;
+      completeContractDelivery(t1);
+    }
+  }
 
-      document.getElementById('truck1StateBadge').className = "truck-state-badge completed";
-      document.getElementById('truck1StateBadge').textContent = "FULFILLED (DELIVERED)";
-      playAlertChime(true);
-      speakHinglishAlert("Mubarak ho! Fasal safaltapoorvak mandi pahunch gayi hai. Escrow bhuqtaan transporter ko jaari kiya gaya.");
-      logEvent("INFO", "CONTRACT_FULFILLED", "Contract CTR-101 completed successfully. Escrow funds disbursed, zero resources leaked.");
-      updateInvariantMonitor();
+  // 2. Progress Truck HR02 if active (Peer Handoff)
+  if (t2.state === "EN_ROUTE") {
+    t2.currentProgress = Math.min(100.0, t2.currentProgress + (stepMinutes * 0.45));
+    document.getElementById('truck2ProgressBar').style.width = `${t2.currentProgress}%`;
+    const remainingPct = 100 - t2.currentProgress;
+    const etaMins = Math.max(0, Math.round(remainingPct * 3.6));
+    document.getElementById('truck2StandbyText').textContent = `Taking over: ${t2.currentProgress.toFixed(0)}% en route ➔ ${simState.contract.mandiId.replace('_', ' ')} (ETA: ${etaMins}m)`;
+
+    if (t2.currentProgress >= 100.0 && simState.contract.state !== "COMPLETED") {
+      t2.state = "DELIVERED";
+      completeContractDelivery(t2);
     }
   }
 
@@ -650,7 +855,7 @@ function startSimulation() {
   document.getElementById('playPauseText').textContent = "Pause";
   document.getElementById('playIcon').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
 
-  const intervalMs = Math.max(200, 1000 / simState.speed);
+  const intervalMs = Math.max(150, 800 / simState.speed);
   simState.timerId = setInterval(() => {
     tickSimulation(5);
   }, intervalMs);
@@ -693,20 +898,39 @@ document.addEventListener('DOMContentLoaded', () => {
     simState.timeMinutes = 120;
     simState.batch.currentQuality = 0.94;
     simState.contract.state = "COMMITTED";
+    simState.contract.version = 1;
+    simState.contract.transporterId = "Truck_DL01";
     simState.contract.hasTruckLock = true;
     simState.contract.hasGateSlot = true;
     simState.contract.hasEscrow = true;
     simState.contract.mandiId = "Mandi_Azadpur";
+
+    simState.nodes["Mandi_Azadpur"].price = 2200;
+    simState.nodes["Mandi_Azadpur"].glut = false;
+    simState.nodes["Mandi_Azadpur"].occupied = 2;
+
     simState.trucks[0].state = "EN_ROUTE";
     simState.trucks[0].currentProgress = 45.0;
     simState.trucks[1].state = "IDLE";
+    simState.trucks[1].currentProgress = 0.0;
 
     document.getElementById('truck1ProgressBar').style.width = '45%';
+    document.getElementById('truck1ProgressBar').style.background = '';
     document.getElementById('truck1StateBadge').className = 'truck-state-badge enroute';
     document.getElementById('truck1StateBadge').textContent = 'EN_ROUTE';
+    document.getElementById('truck1RouteText').textContent = 'Farm_Sonipat ➔ Azadpur';
+    document.getElementById('truck1Eta').textContent = '180m';
+
+    document.getElementById('truck2ProgressBar').style.width = '0%';
     document.getElementById('truck2StateBadge').className = 'truck-state-badge idle';
     document.getElementById('truck2StateBadge').textContent = 'IDLE (STANDBY)';
-    document.getElementById('truck1RouteText').textContent = 'Farm_Sonipat ➔ Azadpur';
+    document.getElementById('truck2StandbyText').textContent = 'Ready for Peer Handoff';
+
+    document.getElementById('recStrategyName').textContent = 'Ready (No Active Disruptions)';
+    document.getElementById('recStatusBadge').textContent = 'Idle';
+    document.getElementById('recStatusBadge').style.background = '';
+    document.getElementById('recStatusBadge').style.color = '';
+    document.getElementById('recActionSummary').textContent = 'Trigger a fault injection above to observe multi-agent compensation and zero-leak recovery protocols.';
 
     initRoadMap();
     updateInvariantMonitor();
@@ -902,29 +1126,107 @@ function stopMicVisualizer() {
     });
   }
 
-  // DTMF Numpad Buttons
+  // DTMF Numpad Buttons (Interactive Telephone IVR)
   document.querySelectorAll('.numpad-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.key;
       playDtmfTone(key);
-      logEvent("INFO", "DTMF_KEYPAD", `DTMF Key Pressed: [${key}]`);
+      if (key === '1') {
+        simState.batch.commodity = "Tomato";
+        document.getElementById('parsedCommodity').textContent = "Tamatar (Tomato)";
+        updateProduceCard("Tomato", simState.batch.volume);
+      } else if (key === '2') {
+        simState.batch.commodity = "Onion";
+        document.getElementById('parsedCommodity').textContent = "Pyaaz (Onion)";
+        updateProduceCard("Onion", simState.batch.volume);
+      } else if (key === '3') {
+        simState.batch.commodity = "Potato";
+        document.getElementById('parsedCommodity').textContent = "Aalu (Potato)";
+        updateProduceCard("Potato", simState.batch.volume);
+      } else if (key === '4') {
+        document.getElementById('parsedDestination').textContent = "Azadpur Mandi";
+      } else if (key === '5') {
+        document.getElementById('parsedDestination').textContent = "Ghazipur Mandi";
+      } else if (key === '6') {
+        document.getElementById('parsedDestination').textContent = "Sonipat Processing Plant";
+      } else if (key === '7') {
+        simState.batch.volume = 25.0;
+        document.getElementById('parsedQuantity').textContent = "25.0 Quintals";
+        updateProduceCard(simState.batch.commodity, 25.0);
+      } else if (key === '8') {
+        simState.batch.volume = 50.0;
+        document.getElementById('parsedQuantity').textContent = "50.0 Quintals";
+        updateProduceCard(simState.batch.commodity, 50.0);
+      } else if (key === '9' || key === '#') {
+        document.getElementById('btnConfirm2PC').click();
+        return;
+      } else if (key === '*') {
+        document.getElementById('btnCancel2PC').click();
+        return;
+      }
+      logEvent("INFO", "DTMF_IVR", `DTMF Key [${key}] selected: ${simState.batch.commodity} (${simState.batch.volume}q) ➔ ${document.getElementById('parsedDestination').textContent}`);
     });
   });
 
   // 2PC Buttons
   document.getElementById('btnConfirm2PC').addEventListener('click', () => {
     playAlertChime(true);
-    speakHinglishAlert("Dhanyavaad! 2-Phase Commit safal raha. Truck aur gate slot reserve ho gaye hain.");
-    logEvent("INFO", "2PC_COMMIT", "Farmer confirmed contract via voice kiosk. 2PC commit verified.");
+    simState.contract.state = "COMMITTED";
+    simState.contract.hasTruckLock = true;
+    simState.contract.hasGateSlot = true;
+    simState.contract.hasEscrow = true;
+    simState.contract.version++;
+
+    // Map parsed destination to node ID
+    const parsedDestText = document.getElementById('parsedDestination').textContent;
+    if (parsedDestText.includes("Ghazipur")) {
+      simState.contract.mandiId = "Mandi_Ghazipur";
+    } else if (parsedDestText.includes("Sonipat") || parsedDestText.includes("Plant")) {
+      simState.contract.mandiId = "Processor_KetchupCo";
+    } else {
+      simState.contract.mandiId = "Mandi_Azadpur";
+    }
+
+    const t1 = simState.trucks[0];
+    t1.state = "EN_ROUTE";
+    t1.currentProgress = 0.0;
+    document.getElementById('truck1ProgressBar').style.width = '0%';
+    document.getElementById('truck1ProgressBar').style.background = '';
+    document.getElementById('truck1StateBadge').className = 'truck-state-badge enroute';
+    document.getElementById('truck1StateBadge').textContent = 'EN_ROUTE';
+    document.getElementById('truck1RouteText').textContent = `Farm_Sonipat ➔ ${simState.contract.mandiId.replace('_', ' ')}`;
+    document.getElementById('truck1Eta').textContent = '220m';
+
+    // Update active route line
+    const edgeAzad = document.getElementById('edge_NH44_Junction_Mandi_Azadpur');
+    const edgeGhaz = document.getElementById('edge_NH44_Junction_Mandi_Ghazipur');
+    const edgePlant = document.getElementById('edge_NH44_Junction_Processor_KetchupCo');
+    if (edgeAzad) edgeAzad.className.baseVal = simState.contract.mandiId === "Mandi_Azadpur" ? "map-edge active-route" : "map-edge";
+    if (edgeGhaz) edgeGhaz.className.baseVal = simState.contract.mandiId === "Mandi_Ghazipur" ? "map-edge active-route reroute" : "map-edge";
+    if (edgePlant) edgePlant.className.baseVal = simState.contract.mandiId === "Processor_KetchupCo" ? "map-edge active-route reroute" : "map-edge";
+
+    updateInvariantMonitor();
+    updateTruckPosition();
+
+    speakHinglishAlert(`Dhanyavaad! 2-Phase Commit safal raha. ${simState.batch.volume}q ${simState.batch.commodity} ke liye truck aur ${simState.contract.mandiId.replace('_', ' ')} slot reserve ho gaye hain.`);
+    logEvent("INFO", "2PC_COMMIT", `2PC Commit Succeeded: ${simState.batch.volume}q ${simState.batch.commodity} locked for ${simState.contract.mandiId} (Contract v${simState.contract.version}).`);
+    
+    // Auto-start simulation so the journey starts
+    startSimulation();
   });
 
   document.getElementById('btnCancel2PC').addEventListener('click', () => {
     playAlertChime(false);
+    pauseSimulation();
     simState.contract.state = "ABORTED";
     simState.contract.hasTruckLock = false;
     simState.contract.hasGateSlot = false;
     simState.contract.hasEscrow = false;
+    simState.trucks[0].state = "IDLE";
+    document.getElementById('truck1StateBadge').className = "truck-state-badge idle";
+    document.getElementById('truck1StateBadge').textContent = "CANCELLED (ABORTED)";
     updateInvariantMonitor();
+    updateTruckPosition();
     speakHinglishAlert("Aadesh radd kar diya gaya hai. Sabhi resource locks release ho chuke hain.");
     logEvent("ROLLBACK", "2PC_ABORT", "Farmer cancelled request. Reverse compensation executed with zero leaks.");
   });
