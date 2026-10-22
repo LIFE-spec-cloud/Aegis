@@ -160,38 +160,15 @@ function playAlertChime(isSuccess = true) {
 }
 
 // ============================================================================
-// 3. Spoken Hinglish Speech Synthesizer (Web Speech API)
+// 3. System Announcements & Notification Feed (Silent Visual Updates)
 // ============================================================================
 
 function speakHinglishAlert(text) {
-  // Update subtitle box immediately
+  // Update announcement display quietly without audio speech
   const subtitleEl = document.getElementById('audioSpeechSubtitle');
   if (subtitleEl) {
     subtitleEl.textContent = `"${text}"`;
   }
-
-  // Animate wave
-  const waveEl = document.getElementById('speakerWave');
-  if (waveEl) {
-    waveEl.classList.add('active');
-    setTimeout(() => waveEl.classList.remove('active'), 4000);
-  }
-
-  if (!simState.audioEnabled || !('speechSynthesis' in window)) return;
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.0;
-  utterance.pitch = 1.05;
-
-  // Try to find a Hindi voice or fallback
-  const voices = window.speechSynthesis.getVoices();
-  const hindiVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN'));
-  if (hindiVoice) {
-    utterance.voice = hindiVoice;
-  }
-
-  window.speechSynthesis.speak(utterance);
 }
 
 // ============================================================================
@@ -738,18 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Audio Toggle
-  document.getElementById('btnAudioToggle').addEventListener('click', () => {
-    simState.audioEnabled = !simState.audioEnabled;
-    const btn = document.getElementById('btnAudioToggle');
-    if (simState.audioEnabled) {
-      btn.classList.add('active');
-      speakHinglishAlert("Audio aawaaz chalu ki gayi hai.");
-    } else {
-      btn.classList.remove('active');
-      window.speechSynthesis.cancel();
-    }
-  });
+
 
   // Voice Chips
   document.querySelectorAll('.voice-chip').forEach(chip => {
