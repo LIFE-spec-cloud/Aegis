@@ -6,30 +6,36 @@
 
 namespace agro {
 
-class TruckReservationGuard {
+/**
+ * Generic RAII Resource Guard.
+ * Automatically executes the compensating release action upon scope exit
+ * unless explicitly dismissed or released.
+ */
+template <typename Port, typename Handle, typename Releaser>
+class BaseReservationGuard {
 public:
-    TruckReservationGuard(ITruckLockPort& port, TruckLockHandle handle)
+    BaseReservationGuard(Port& port, Handle handle)
         : m_port(port), m_handle(std::move(handle)), m_active(true) {}
 
-    ~TruckReservationGuard() {
+    ~BaseReservationGuard() {
         if (m_active && m_handle.isValid()) {
-            m_port.releaseTruck(m_handle);
+            Releaser{}(m_port, m_handle);
             m_handle.invalidate();
         }
     }
 
-    TruckReservationGuard(const TruckReservationGuard&) = delete;
-    TruckReservationGuard& operator=(const TruckReservationGuard&) = delete;
+    BaseReservationGuard(const BaseReservationGuard&) = delete;
+    BaseReservationGuard& operator=(const BaseReservationGuard&) = delete;
 
-    TruckReservationGuard(TruckReservationGuard&& other) noexcept
+    BaseReservationGuard(BaseReservationGuard&& other) noexcept
         : m_port(other.m_port), m_handle(std::move(other.m_handle)), m_active(other.m_active) {
         other.m_active = false;
     }
 
-    TruckReservationGuard& operator=(TruckReservationGuard&& other) noexcept {
+    BaseReservationGuard& operator=(BaseReservationGuard&& other) noexcept {
         if (this != &other) {
             if (m_active && m_handle.isValid()) {
-                m_port.releaseTruck(m_handle);
+                Releaser{}(m_port, m_handle);
             }
             m_handle = std::move(other.m_handle);
             m_active = other.m_active;
@@ -39,10 +45,10 @@ public:
     }
 
     [[nodiscard]] bool isActive() const noexcept { return m_active && m_handle.isValid(); }
-    [[nodiscard]] const TruckLockHandle& handle() const noexcept { return m_handle; }
-    [[nodiscard]] TruckLockHandle& handle() noexcept { return m_handle; }
+    [[nodiscard]] const Handle& handle() const noexcept { return m_handle; }
+    [[nodiscard]] Handle& handle() noexcept { return m_handle; }
 
-    [[nodiscard]] TruckLockHandle release() noexcept {
+    [[nodiscard]] Handle release() noexcept {
         m_active = false;
         return std::move(m_handle);
     }
@@ -52,111 +58,31 @@ public:
     }
 
 private:
-    ITruckLockPort& m_port;
-    TruckLockHandle m_handle;
+    Port& m_port;
+    Handle m_handle;
     bool m_active{false};
 };
 
-class SlotReservationGuard {
-public:
-    SlotReservationGuard(ISlotPort& port, SlotReservationHandle handle)
-        : m_port(port), m_handle(std::move(handle)), m_active(true) {}
-
-    ~SlotReservationGuard() {
-        if (m_active && m_handle.isValid()) {
-            m_port.cancelSlot(m_handle);
-            m_handle.invalidate();
-        }
+struct TruckReleaser {
+    void operator()(ITruckLockPort& port, TruckLockHandle& handle) const {
+        port.releaseTruck(handle);
     }
-
-    SlotReservationGuard(const SlotReservationGuard&) = delete;
-    SlotReservationGuard& operator=(const SlotReservationGuard&) = delete;
-
-    SlotReservationGuard(SlotReservationGuard&& other) noexcept
-        : m_port(other.m_port), m_handle(std::move(other.m_handle)), m_active(other.m_active) {
-        other.m_active = false;
-    }
-
-    SlotReservationGuard& operator=(SlotReservationGuard&& other) noexcept {
-        if (this != &other) {
-            if (m_active && m_handle.isValid()) {
-                m_port.cancelSlot(m_handle);
-            }
-            m_handle = std::move(other.m_handle);
-            m_active = other.m_active;
-            other.m_active = false;
-        }
-        return *this;
-    }
-
-    [[nodiscard]] bool isActive() const noexcept { return m_active && m_handle.isValid(); }
-    [[nodiscard]] const SlotReservationHandle& handle() const noexcept { return m_handle; }
-    [[nodiscard]] SlotReservationHandle& handle() noexcept { return m_handle; }
-
-    [[nodiscard]] SlotReservationHandle release() noexcept {
-        m_active = false;
-        return std::move(m_handle);
-    }
-
-    void dismiss() noexcept {
-        m_active = false;
-    }
-
-private:
-    ISlotPort& m_port;
-    SlotReservationHandle m_handle;
-    bool m_active{false};
 };
 
-class EscrowReservationGuard {
-public:
-    EscrowReservationGuard(IEscrowPort& port, EscrowHandle handle)
-        : m_port(port), m_handle(std::move(handle)), m_active(true) {}
-
-    ~EscrowReservationGuard() {
-        if (m_active && m_handle.isValid()) {
-            m_port.refundEscrow(m_handle, m_handle.amount());
-            m_handle.invalidate();
-        }
+struct SlotCanceler {
+    void operator()(ISlotPort& port, SlotReservationHandle& handle) const {
+        port.cancelSlot(handle);
     }
-
-    EscrowReservationGuard(const EscrowReservationGuard&) = delete;
-    EscrowReservationGuard& operator=(const EscrowReservationGuard&) = delete;
-
-    EscrowReservationGuard(EscrowReservationGuard&& other) noexcept
-        : m_port(other.m_port), m_handle(std::move(other.m_handle)), m_active(other.m_active) {
-        other.m_active = false;
-    }
-
-    EscrowReservationGuard& operator=(EscrowReservationGuard&& other) noexcept {
-        if (this != &other) {
-            if (m_active && m_handle.isValid()) {
-                m_port.refundEscrow(m_handle, m_handle.amount());
-            }
-            m_handle = std::move(other.m_handle);
-            m_active = other.m_active;
-            other.m_active = false;
-        }
-        return *this;
-    }
-
-    [[nodiscard]] bool isActive() const noexcept { return m_active && m_handle.isValid(); }
-    [[nodiscard]] const EscrowHandle& handle() const noexcept { return m_handle; }
-    [[nodiscard]] EscrowHandle& handle() noexcept { return m_handle; }
-
-    [[nodiscard]] EscrowHandle release() noexcept {
-        m_active = false;
-        return std::move(m_handle);
-    }
-
-    void dismiss() noexcept {
-        m_active = false;
-    }
-
-private:
-    IEscrowPort& m_port;
-    EscrowHandle m_handle;
-    bool m_active{false};
 };
+
+struct EscrowRefunder {
+    void operator()(IEscrowPort& port, EscrowHandle& handle) const {
+        port.refundEscrow(handle, handle.amount());
+    }
+};
+
+using TruckReservationGuard = BaseReservationGuard<ITruckLockPort, TruckLockHandle, TruckReleaser>;
+using SlotReservationGuard = BaseReservationGuard<ISlotPort, SlotReservationHandle, SlotCanceler>;
+using EscrowReservationGuard = BaseReservationGuard<IEscrowPort, EscrowHandle, EscrowRefunder>;
 
 } // namespace agro
