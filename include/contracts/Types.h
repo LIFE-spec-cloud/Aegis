@@ -2,10 +2,14 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <compare>
 #include <cmath>
 #include <ostream>
+#include <sstream>
+#include <iomanip>
 #include <functional>
+#include <cctype>
 
 namespace kisansetu::contracts {
 
@@ -15,16 +19,17 @@ namespace kisansetu::contracts {
 class AgentId {
 public:
     AgentId() = default;
-    explicit AgentId(std::string id) : id_(std::move(id)) {}
+    explicit AgentId(std::string id) : value(std::move(id)) {}
+    AgentId(std::string_view sv) : value(sv) {}
+    AgentId(const char* s) : value(s) {}
 
-    [[nodiscard]] const std::string& str() const noexcept { return id_; }
-    [[nodiscard]] bool empty() const noexcept { return id_.empty(); }
+    [[nodiscard]] const std::string& str() const noexcept { return value; }
+    [[nodiscard]] bool empty() const noexcept { return value.empty(); }
 
     auto operator<=>(const AgentId&) const = default;
     bool operator==(const AgentId&) const = default;
 
-private:
-    std::string id_;
+    std::string value;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const AgentId& id) {
@@ -37,7 +42,29 @@ inline std::ostream& operator<<(std::ostream& os, const AgentId& id) {
 class ContractId {
 public:
     constexpr ContractId() noexcept : id_(0) {}
-    constexpr explicit ContractId(uint64_t id) noexcept : id_(id) {}
+    constexpr ContractId(uint64_t id) noexcept : id_(id) {}
+    constexpr ContractId(int id) noexcept : id_(static_cast<uint64_t>(id)) {}
+
+    explicit ContractId(std::string_view sv) {
+        if (sv.rfind("CTR-", 0) == 0) {
+            try {
+                id_ = std::stoull(std::string(sv.substr(4)));
+            } catch (...) {
+                id_ = std::hash<std::string_view>{}(sv);
+            }
+        } else if (!sv.empty() && std::isdigit(static_cast<unsigned char>(sv[0]))) {
+            try {
+                id_ = std::stoull(std::string(sv));
+            } catch (...) {
+                id_ = std::hash<std::string_view>{}(sv);
+            }
+        } else {
+            id_ = std::hash<std::string_view>{}(sv);
+        }
+    }
+
+    explicit ContractId(const std::string& s) : ContractId(std::string_view(s)) {}
+    explicit ContractId(const char* s) : ContractId(std::string_view(s)) {}
 
     [[nodiscard]] constexpr uint64_t value() const noexcept { return id_; }
     [[nodiscard]] std::string str() const {
@@ -60,8 +87,10 @@ inline std::ostream& operator<<(std::ostream& os, const ContractId& id) {
  */
 class Money {
 public:
-    constexpr Money() noexcept : paise_(0) {}
-    constexpr explicit Money(int64_t paise) noexcept : paise_(paise) {}
+    int64_t paise{0};
+
+    constexpr Money() noexcept : paise(0) {}
+    constexpr explicit Money(int64_t p) noexcept : paise(p) {}
 
     [[nodiscard]] static constexpr Money fromPaise(int64_t p) noexcept {
         return Money(p);
@@ -71,34 +100,40 @@ public:
         return Money(static_cast<int64_t>(std::round(r * 100.0)));
     }
 
-    [[nodiscard]] constexpr int64_t toPaise() const noexcept { return paise_; }
+    [[nodiscard]] constexpr int64_t toPaise() const noexcept { return paise; }
     [[nodiscard]] constexpr double toRupees() const noexcept {
-        return static_cast<double>(paise_) / 100.0;
+        return static_cast<double>(paise) / 100.0;
+    }
+
+    [[nodiscard]] std::string format() const {
+        std::ostringstream oss;
+        int64_t absPaise = paise < 0 ? -paise : paise;
+        if (paise < 0) oss << "-";
+        oss << "INR " << (absPaise / 100) << "." 
+            << std::setfill('0') << std::setw(2) << (absPaise % 100);
+        return oss.str();
     }
 
     constexpr auto operator<=>(const Money&) const = default;
     constexpr bool operator==(const Money&) const = default;
 
-    constexpr Money operator+(Money o) const noexcept { return Money(paise_ + o.paise_); }
-    constexpr Money operator-(Money o) const noexcept { return Money(paise_ - o.paise_); }
+    constexpr Money operator+(Money o) const noexcept { return Money(paise + o.paise); }
+    constexpr Money operator-(Money o) const noexcept { return Money(paise - o.paise); }
     constexpr Money operator*(double factor) const noexcept {
-        return Money(static_cast<int64_t>(std::round(static_cast<double>(paise_) * factor)));
+        return Money(static_cast<int64_t>(std::round(static_cast<double>(paise) * factor)));
     }
     constexpr Money operator/(double divisor) const noexcept {
-        return Money(static_cast<int64_t>(std::round(static_cast<double>(paise_) / divisor)));
+        return Money(static_cast<int64_t>(std::round(static_cast<double>(paise) / divisor)));
     }
 
     constexpr Money& operator+=(Money o) noexcept {
-        paise_ += o.paise_;
+        paise += o.paise;
         return *this;
     }
     constexpr Money& operator-=(Money o) noexcept {
-        paise_ -= o.paise_;
+        paise -= o.paise;
         return *this;
     }
-
-private:
-    int64_t paise_{0};
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Money& m) {
@@ -124,7 +159,7 @@ public:
     constexpr bool operator==(const Quintals&) const = default;
 
     constexpr Quintals operator+(Quintals o) const noexcept { return Quintals(value_ + o.value_); }
-    constexpr Quintals operator-(Quintals o) const noexcept { return Quintals(value_ - o.value_); }
+    constexpr Quintals operator-(Quintals o) const noexcept { return Quintals(value_ >= o.value_ ? value_ - o.value_ : 0.0); }
     constexpr Quintals operator*(double factor) const noexcept { return Quintals(value_ * factor); }
     constexpr Quintals operator/(double divisor) const noexcept { return Quintals(value_ / divisor); }
 
@@ -133,7 +168,7 @@ public:
         return *this;
     }
     constexpr Quintals& operator-=(Quintals o) noexcept {
-        value_ -= o.value_;
+        value_ = (value_ >= o.value_ ? value_ - o.value_ : 0.0);
         return *this;
     }
 
@@ -158,18 +193,22 @@ public:
         return static_cast<double>(ticks_) / 60.0;
     }
 
+    [[nodiscard]] static constexpr SimTime fromHours(double hours) noexcept {
+        return SimTime(static_cast<int64_t>(std::round(hours * 60.0)));
+    }
+
     constexpr auto operator<=>(const SimTime&) const = default;
     constexpr bool operator==(const SimTime&) const = default;
 
     constexpr SimTime operator+(SimTime o) const noexcept { return SimTime(ticks_ + o.ticks_); }
-    constexpr SimTime operator-(SimTime o) const noexcept { return SimTime(ticks_ - o.ticks_); }
+    constexpr SimTime operator-(SimTime o) const noexcept { return SimTime(ticks_ >= o.ticks_ ? ticks_ - o.ticks_ : 0); }
 
     constexpr SimTime& operator+=(SimTime o) noexcept {
         ticks_ += o.ticks_;
         return *this;
     }
     constexpr SimTime& operator-=(SimTime o) noexcept {
-        ticks_ -= o.ticks_;
+        ticks_ = (ticks_ >= o.ticks_ ? ticks_ - o.ticks_ : 0);
         return *this;
     }
 
@@ -216,6 +255,8 @@ class NodeId {
 public:
     NodeId() = default;
     explicit NodeId(std::string name) : name_(std::move(name)) {}
+    NodeId(std::string_view sv) : name_(sv) {}
+    NodeId(const char* s) : name_(s) {}
 
     [[nodiscard]] const std::string& str() const noexcept { return name_; }
     [[nodiscard]] bool empty() const noexcept { return name_.empty(); }
@@ -251,17 +292,15 @@ inline std::string toString(CommodityType type) {
 
 /**
  * @brief Freshness grade thresholds based on quality metric Q.
- * Grade A: Q >= 0.85 (Price multiplier: 1.00)
- * Grade B: Q >= 0.65 (Price multiplier: 0.75)
- * Grade C: Q >= 0.40 (Price multiplier: 0.45)
- * Spoiled: Q <  0.40 (Price multiplier: 0.00)
  */
 enum class FreshnessGrade {
-    GradeA,
-    GradeB,
-    GradeC,
-    Spoiled
+    GradeA, // Q >= 0.85
+    GradeB, // Q >= 0.65
+    GradeC, // Q >= 0.40
+    Spoiled // Q <  0.40
 };
+
+using CropGrade = FreshnessGrade;
 
 inline std::string toString(FreshnessGrade grade) {
     switch (grade) {
@@ -359,7 +398,23 @@ inline std::string toString(Performative perf) {
 
 } // namespace kisansetu::contracts
 
-// Standard hash specializations for strong types
+namespace agro {
+    using namespace kisansetu::contracts;
+
+    /**
+     * @brief Batch specification structure for contracts.
+     */
+    struct CropBatch {
+        CommodityType commodity{CommodityType::Tomato};
+        Quintals volume{0.0};
+        SimTime harvestTime{0};
+        double decayLambda{0.030};     // per hour
+        double tempMultiplier{1.0};    // mu_temp (1.0 at <=20C, up to 1.5 at 40C)
+        double qualityQ0{1.0};
+        bool isRefrigerated{false};
+    };
+}
+
 namespace std {
     template <>
     struct hash<kisansetu::contracts::AgentId> {

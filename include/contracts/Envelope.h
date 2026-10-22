@@ -3,16 +3,17 @@
 #include "Types.h"
 #include "Payloads.h"
 #include <string>
+#include <utility>
 
 namespace kisansetu::contracts {
 
 /**
  * @brief Immutable message envelope routed by the EventBus and LogisticsBroker.
- *
- * All fields are immutable after construction.
  */
 class Envelope {
 public:
+    Envelope() = default;
+
     Envelope(std::string messageId,
              ContractId correlationId,
              AgentId sender,
@@ -44,13 +45,13 @@ public:
 
 private:
     std::string messageId_;
-    ContractId correlationId_;
+    ContractId correlationId_{0};
     AgentId sender_;
     AgentId receiver_;
-    Performative performative_;
-    Payload payload_;
-    SimTime sentAt_;
-    SimTime ttl_;
+    Performative performative_{Performative::INFORM};
+    Payload payload_{InformPayload{}};
+    SimTime sentAt_{0};
+    SimTime ttl_{0};
 };
 
 } // namespace kisansetu::contracts

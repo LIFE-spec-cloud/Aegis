@@ -20,6 +20,8 @@ struct TaskAnnouncementPayload {
     NodeId farmLocation;
 };
 
+using TaskAnnouncement = TaskAnnouncementPayload;
+
 /**
  * @brief Broker fans out Call for Proposals (CFP) to Transporters and Mandis.
  */
@@ -210,5 +212,7 @@ using Payload = std::variant<
     MandiPriceTickPayload,
     InformPayload
 >;
+
+using MessagePayload = Payload;
 
 } // namespace kisansetu::contracts

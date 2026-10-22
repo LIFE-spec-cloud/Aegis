@@ -1,6 +1,30 @@
+# Build artifacts and binaries
 build/
-build_*/
+bin/
 *.o
 *.a
 *.dylib
+*.obj
+*.exe
+kisansetu
+kisansetu_tests
+test_b_*
+tests/fakes/test_fakes
+tests/test_commands
+tests/test_recovery
+tests/test_interface
+
+# CMake generated
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.cmake
+compile_commands.json
+
+# IDE and OS
+.vscode/
+.idea/
 .DS_Store
+Thumbs.db
+*.swp
+*~

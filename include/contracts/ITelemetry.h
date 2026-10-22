@@ -14,14 +14,22 @@ namespace kisansetu::contracts {
  */
 struct TelemetryEvent {
     SimTime timestamp{0};
-    AgentId truckId;
-    NodeId position;
+    AgentId truckId{};
+    NodeId position{"Farm_Sonipat"};
     double speedKmh{0.0};
     TruckState state{TruckState::IDLE};
     SimTime predictedArrival{0};
     double currentQuality{1.0};
-    std::string batchId;
-    std::optional<MandiPriceTickPayload> mandiPriceTick;
+    std::string batchId{};
+    std::optional<MandiPriceTickPayload> mandiPriceTick{std::nullopt};
+
+    ContractId contractId{0};
+    std::string currentNode{"Farm_Sonipat"};
+    double speedKmH{0.0};
+    SimTime currentSimTime{0};
+    SimTime estimatedArrivalSimTime{0};
+    double predictedQualityAtArrival{1.0};
+    SimTime lastHeartbeatTime{0};
 
     [[nodiscard]] std::string toLogString() const {
         std::ostringstream oss;
@@ -39,22 +47,39 @@ struct TelemetryEvent {
     }
 };
 
+struct MandiPriceTickEvent {
+    AgentId mandiId;
+    CommodityType commodity{CommodityType::Tomato};
+    Money quotedPrice{0};
+    Money baselinePrice{0};
+    double surgeRatio{1.0};
+    uint32_t activeArrivalsCount{0};
+    uint32_t hourlyCapacity{4};
+    SimTime timestamp{0};
+};
+
 /**
  * @brief Anomaly classification recognized by TelemetryWatchdog.
  */
 enum class AnomalyType {
-    SPOILAGE_RISK,      // Q_arrival < mandi_min_quality (0.60)
-    MANDI_GLUT,          // Severe price depression below farmer reserve
-    TRUCK_STALL,         // Truck stopped or stalled
-    HEARTBEAT_TIMEOUT    // Missing heartbeat for 3 ticks
+    SPOILAGE_RISK,
+    MANDI_GLUT,
+    TRUCK_STALL,
+    HEARTBEAT_TIMEOUT,
+
+    // Aliases
+    HighwayStoppage = SPOILAGE_RISK,
+    MandiGlut = MANDI_GLUT,
+    TransporterFailure = TRUCK_STALL,
+    StaleTelemetry = HEARTBEAT_TIMEOUT
 };
 
 inline std::string toString(AnomalyType anomaly) {
     switch (anomaly) {
-        case AnomalyType::SPOILAGE_RISK:   return "SPOILAGE_RISK";
-        case AnomalyType::MANDI_GLUT:       return "MANDI_GLUT";
-        case AnomalyType::TRUCK_STALL:      return "TRUCK_STALL";
-        case AnomalyType::HEARTBEAT_TIMEOUT: return "HEARTBEAT_TIMEOUT";
+        case AnomalyType::SPOILAGE_RISK:     return "SPOILAGE_RISK";
+        case AnomalyType::MANDI_GLUT:         return "MANDI_GLUT";
+        case AnomalyType::TRUCK_STALL:        return "TRUCK_STALL";
+        case AnomalyType::HEARTBEAT_TIMEOUT:  return "HEARTBEAT_TIMEOUT";
     }
     return "Unknown";
 }
@@ -68,7 +93,10 @@ struct AnomalyEvent {
     AgentId agentId;
     ContractId contractId{0};
     std::string description;
+    SimTime detectedAt{0};
 };
+
+using AnomalyAlert = AnomalyEvent;
 
 /**
  * @brief Observer interface for listening to telemetry and watchdog anomalies.
@@ -77,8 +105,12 @@ class ITelemetryWatchdogListener {
 public:
     virtual ~ITelemetryWatchdogListener() = default;
 
-    virtual void onTelemetry(const TelemetryEvent& event) = 0;
-    virtual void onAnomaly(const AnomalyEvent& anomaly) = 0;
+    virtual void onTelemetry(const TelemetryEvent& event) { (void)event; }
+    virtual void onAnomaly(const AnomalyEvent& anomaly) { (void)anomaly; }
+
+    virtual void onTruckTelemetry(const TelemetryEvent& event) { onTelemetry(event); }
+    virtual void onMandiPriceTick(const MandiPriceTickEvent& event) { (void)event; }
+    virtual void onAnomalyAlert(const AnomalyAlert& alert) { onAnomaly(alert); }
 };
 
 } // namespace kisansetu::contracts

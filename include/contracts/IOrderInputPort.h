@@ -7,50 +7,34 @@
 
 namespace kisansetu::contracts {
 
-/**
- * @brief Input event from voice transcript.
- */
-struct VoiceTextInput {
-    std::string transcript;
-    double confidence{1.0};
+enum class IntentType {
+    Sell,
+    Transport,
+    EmergencyStop,
+    Unknown
 };
-
-/**
- * @brief Input event from telephone keypad DTMF tones.
- */
-struct DtmfInput {
-    std::string keySequence;
-};
-
-/**
- * @brief Input event from physical or onscreen button press.
- */
-struct ButtonTapInput {
-    std::string buttonId;
-};
-
-/**
- * @brief Sum type for all user input events.
- */
-using InputEvent = std::variant<VoiceTextInput, DtmfInput, ButtonTapInput>;
 
 /**
  * @brief Typed domain command to create a harvest batch and initiate planning.
  */
 struct CreateHarvestBatchCommand {
     AgentId farmerId;
-    CommodityType crop{CommodityType::Tomato};
+    CommodityType commodity{CommodityType::Tomato};
     Quintals quantity{0.0};
+    IntentType intent{IntentType::Sell};
+    SimTime deadline{0};
+
+    // Person A compatibility fields
+    CommodityType crop{CommodityType::Tomato};
     Money reservePrice{0};
     SimTime readyTime{0};
-    SimTime deadline{0};
     std::string rawUtterance;
     double confidenceScore{1.0};
     bool needsConfirmation{false};
 };
 
 /**
- * @brief Typed domain command to confirm an award or confirmation card.
+ * @brief Typed domain command to confirm an award.
  */
 struct ConfirmContractCommand {
     ContractId contractId{0};
@@ -59,7 +43,16 @@ struct ConfirmContractCommand {
 };
 
 /**
- * @brief Typed domain command to abort an order.
+ * @brief Typed domain command to reject an offer.
+ */
+struct RejectContractCommand {
+    ContractId contractId{0};
+    AgentId farmerId;
+    std::string reason;
+};
+
+/**
+ * @brief Typed domain command to cancel an order.
  */
 struct CancelOrderCommand {
     ContractId contractId{0};
@@ -73,6 +66,7 @@ struct CancelOrderCommand {
 using DomainCommand = std::variant<
     CreateHarvestBatchCommand,
     ConfirmContractCommand,
+    RejectContractCommand,
     CancelOrderCommand
 >;
 
@@ -80,6 +74,13 @@ using DomainCommand = std::variant<
  * @brief Visual confirmation card displayed when voice recognition confidence is borderline.
  */
 struct ConfirmationCard {
+    std::string title;
+    std::string promptHinglish;
+    std::string summaryDetails;
+    DomainCommand pendingCommand{ConfirmContractCommand{}};
+    bool requiresOneTapAction{true};
+
+    // Person A compatibility fields
     ContractId contractId{0};
     AgentId farmerId;
     std::string summaryText;
@@ -89,26 +90,27 @@ struct ConfirmationCard {
     bool requiresTapToCommit{true};
 };
 
-/**
- * @brief Color classification for produce readiness display.
- */
-enum class ProduceStatusColor {
-    Green, // Grade A: prime condition, sell at APMC
-    Amber, // Grade B/C: decaying, dispatch immediately or reroute
-    Red    // Spoiled: below mandi acceptance
+struct ParsedOrderResult {
+    std::optional<DomainCommand> command;
+    double confidence{0.0};
+    std::optional<ConfirmationCard> confirmationCard;
+    std::string rawInput;
+    std::string interpretationNote;
 };
 
-/**
- * @brief Produce status card presented to the farmer.
- */
-struct ProduceStatusCard {
-    std::string batchId;
-    CommodityType crop;
-    double currentQuality{1.0};
-    FreshnessGrade grade{FreshnessGrade::GradeA};
-    ProduceStatusColor color{ProduceStatusColor::Green};
-    std::string actionRecommendation;
+enum class InputEventType {
+    VoiceText,
+    Dtmf,
+    ButtonTap
 };
+
+struct InputEvent {
+    InputEventType type{InputEventType::VoiceText};
+    std::string payload; // vernacular string, DTMF digits, or button ID
+    AgentId sourceFarmer;
+    SimTime timestamp{0};
+};
+
 
 /**
  * @brief Port interface for parsing user inputs into typed domain commands.
@@ -117,8 +119,8 @@ class IOrderInputPort {
 public:
     virtual ~IOrderInputPort() = default;
 
-    [[nodiscard]] virtual std::optional<DomainCommand> parse(
-        const InputEvent& input) = 0;
+    [[nodiscard]] virtual ParsedOrderResult parse(
+        const InputEvent& event) = 0;
 };
 
 } // namespace kisansetu::contracts
