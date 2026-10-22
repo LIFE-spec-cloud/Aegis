@@ -100,6 +100,18 @@
             </svg>
           </button>
           <span class="mic-status-label" id="micStatusLabel">Tap to speak or select phrase</span>
+          <canvas id="micVisualizerCanvas" class="mic-visualizer" width="220" height="32"></canvas>
+        </div>
+
+        <!-- Live Voice-to-Text Input Bar -->
+        <div class="voice-input-bar">
+          <input type="text" id="voiceCommandInput" class="voice-text-input" placeholder="Bol kar ya likh kar aadesh dein (e.g. 35 qtl tamatar)...">
+          <button id="btnSubmitVoiceInput" class="btn-voice-submit" title="Process voice or text order">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+            <span>Process</span>
+          </button>
         </div>
 
         <!-- Vernacular Speech Preset Chips -->

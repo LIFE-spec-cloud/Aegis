@@ -767,46 +767,168 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Mic Button (Speech Recognition simulation / native fallback)
+// Visualizer state
+let micStream = null;
+let micAnalyser = null;
+let micAnimId = null;
+
+function startMicVisualizer(stream) {
+  const canvas = document.getElementById('micVisualizerCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const aCtx = getAudioContext();
+  if (!aCtx) return;
+
+  try {
+    const source = aCtx.createMediaStreamSource(stream);
+    micAnalyser = aCtx.createAnalyser();
+    micAnalyser.fftSize = 64;
+    source.connect(micAnalyser);
+
+    const bufferLength = micAnalyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    function draw() {
+      micAnimId = requestAnimationFrame(draw);
+      micAnalyser.getByteFrequencyData(dataArray);
+
+      ctx.fillStyle = 'rgba(9, 13, 22, 0.4)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const barWidth = (canvas.width / bufferLength) * 1.5;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        const barHeight = (dataArray[i] / 255) * canvas.height;
+        ctx.fillStyle = `rgb(${16 + dataArray[i]}, 185, ${129 + Math.floor(dataArray[i]/2)})`;
+        ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
+        x += barWidth;
+      }
+    }
+    draw();
+  } catch (err) {
+    console.warn("Visualizer audio graph notice:", err);
+  }
+}
+
+function stopMicVisualizer() {
+  if (micAnimId) {
+    cancelAnimationFrame(micAnimId);
+    micAnimId = null;
+  }
+  if (micStream) {
+    micStream.getTracks().forEach(t => t.stop());
+    micStream = null;
+  }
+  const canvas = document.getElementById('micVisualizerCanvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+  // Mic Button (Live Voice-to-Text Recognition)
   const micBtn = document.getElementById('btnMicTrigger');
   const micLabel = document.getElementById('micStatusLabel');
-  micBtn.addEventListener('click', () => {
+  const voiceInput = document.getElementById('voiceCommandInput');
+
+  let isRecording = false;
+  let activeRecognition = null;
+
+  micBtn.addEventListener('click', async () => {
     getAudioContext();
+
+    if (isRecording) {
+      if (activeRecognition) {
+        try { activeRecognition.stop(); } catch(e){}
+      }
+      stopMicVisualizer();
+      isRecording = false;
+      micBtn.classList.remove('listening');
+      micLabel.textContent = "Tap to speak or select phrase";
+      return;
+    }
+
+    // Try live mic visualizer
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        startMicVisualizer(micStream);
+      } catch (err) {
+        console.warn("Microphone access notice:", err);
+      }
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.lang = 'hi-IN';
-      recognition.interimResults = false;
+      activeRecognition = recognition;
+      recognition.lang = 'hi-IN'; // Hindi (India)
+      recognition.interimResults = true;
+      recognition.continuous = false;
 
+      isRecording = true;
       micBtn.classList.add('listening');
-      micLabel.textContent = "Listening to farmer... (Bolte rahiye)";
+      micLabel.textContent = "Listening live... Bolte rahiye";
 
       recognition.onresult = event => {
-        const transcript = event.results[0][0].transcript;
-        micBtn.classList.remove('listening');
-        micLabel.textContent = "Processing speech...";
-        parseVernacularUtterance(transcript);
-        speakHinglishAlert(`Aapka aadesh suna gaya: ${transcript}`);
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
+
+        if (voiceInput) voiceInput.value = transcript;
+        micLabel.textContent = `Heard: "${transcript}"`;
+
+        if (event.results[0].isFinal) {
+          parseVernacularUtterance(transcript);
+          speakHinglishAlert(`Aapka aadesh suna gaya: ${transcript}`);
+          playAlertChime(true);
+        }
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = event => {
+        console.warn("Speech recognition notice:", event.error);
+        micLabel.textContent = "Voice input ready. Tap or type command.";
+        stopMicVisualizer();
+        isRecording = false;
         micBtn.classList.remove('listening');
-        micLabel.textContent = "Tap to speak or select phrase";
       };
 
       recognition.onend = () => {
+        stopMicVisualizer();
+        isRecording = false;
         micBtn.classList.remove('listening');
       };
 
-      recognition.start();
+      try {
+        recognition.start();
+      } catch (e) {
+        console.warn(e);
+      }
     } else {
-      // Direct voice toggle fallback
-      parseVernacularUtterance("Bhaiya 25 quintal tamatar bechna hai Azadpur mandi tak");
-      speakHinglishAlert("Kya aap 25 quintal Tamatar mandi me bechna chahte hain?");
-      playAlertChime(true);
+      micLabel.textContent = "Speech recognition not supported in this browser. Please type below.";
+      if (voiceInput) voiceInput.focus();
     }
   });
+
+  // Manual Voice-to-Text Input Bar (Submit on button or Enter key)
+  const submitVoiceBtn = document.getElementById('btnSubmitVoiceInput');
+  const handleVoiceTextSubmit = () => {
+    const val = (voiceInput.value || "").trim();
+    if (!val) return;
+    parseVernacularUtterance(val);
+    speakHinglishAlert(`Aapka aadesh process kiya gaya: ${val}`);
+    playAlertChime(true);
+  };
+
+  if (submitVoiceBtn) submitVoiceBtn.addEventListener('click', handleVoiceTextSubmit);
+  if (voiceInput) {
+    voiceInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') handleVoiceTextSubmit();
+    });
+  }
 
   // DTMF Numpad Buttons
   document.querySelectorAll('.numpad-btn').forEach(btn => {
