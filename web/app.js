@@ -295,6 +295,9 @@ function updateProduceCard(crop, qty) {
 // ============================================================================
 
 function updateInvariantMonitor() {
+  const invTruck = document.getElementById('invTruckLocks');
+  if (!invTruck) return;
+
   const isTerminal1 = (simState.contract.state === "COMPLETED" || 
                        simState.contract.state === "COMPENSATED" || 
                        simState.contract.state === "ABORTED");
@@ -323,10 +326,13 @@ function updateInvariantMonitor() {
     if (simState.contract2.hasEscrow) escrowHolds++;
   }
 
-  document.getElementById('invTruckLocks').textContent = truckLocks;
-  document.getElementById('invGateSlots').textContent = gateSlots;
-  document.getElementById('invEscrowHolds').textContent = escrowHolds;
-  document.getElementById('invActiveContracts').textContent = activeContracts;
+  invTruck.textContent = truckLocks;
+  const gateEl = document.getElementById('invGateSlots');
+  if (gateEl) gateEl.textContent = gateSlots;
+  const escEl = document.getElementById('invEscrowHolds');
+  if (escEl) escEl.textContent = escrowHolds;
+  const actEl = document.getElementById('invActiveContracts');
+  if (actEl) actEl.textContent = activeContracts;
 
   const totalLocks = truckLocks + gateSlots + escrowHolds;
   const invariantPassed = (totalLocks === activeContracts * 3);
@@ -334,18 +340,26 @@ function updateInvariantMonitor() {
   const badge = document.getElementById('invariantBadge');
   const led = document.getElementById('invariantLed');
 
-  if (invariantPassed) {
-    badge.className = "badge badge-safe";
-    badge.textContent = activeContracts === 0 ? "PASSED (0 LEAKS)" : `VERIFIED (${activeContracts} BATCH ACTIVE)`;
-    led.className = "status-indicator active";
-    led.textContent = "0 Leaks";
-  } else {
-    badge.className = "badge";
-    badge.style.background = "rgba(239, 68, 68, 0.3)";
-    badge.style.color = "#f87171";
-    badge.textContent = "LEAK DETECTED!";
-    led.className = "status-indicator";
-    led.textContent = "Leak Breach";
+  if (badge) {
+    if (invariantPassed) {
+      badge.className = "badge badge-safe";
+      badge.textContent = activeContracts === 0 ? "PASSED (0 LEAKS)" : `VERIFIED (${activeContracts} BATCH ACTIVE)`;
+    } else {
+      badge.className = "badge";
+      badge.style.background = "rgba(239, 68, 68, 0.3)";
+      badge.style.color = "#f87171";
+      badge.textContent = "LEAK DETECTED!";
+    }
+  }
+
+  if (led) {
+    if (invariantPassed) {
+      led.className = "status-indicator active";
+      led.textContent = "0 Leaks";
+    } else {
+      led.className = "status-indicator";
+      led.textContent = "Leak Breach";
+    }
   }
 }
 
@@ -474,9 +488,93 @@ function updateRouteHighlights() {
   });
 }
 
+function renderMapNodes() {
+  const nodesGroup = document.getElementById('roadNodes');
+  if (!nodesGroup) return;
+
+  nodesGroup.innerHTML = '';
+  Object.values(simState.nodes).forEach(n => {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", "map-node");
+    g.setAttribute("transform", `translate(${n.x}, ${n.y})`);
+    g.style.cursor = "pointer";
+
+    // Circle
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("r", n.type === "mandi" ? 13 : 8);
+
+    if (n.type === "mandi") {
+      if (n.glut) {
+        // Red flashing crash style
+        circle.setAttribute("fill", "#ef4444");
+        circle.setAttribute("stroke", "#fca5a5");
+        circle.setAttribute("stroke-width", "3.5");
+      } else if (simState.contract.mandiId === n.name) {
+        // Active destination style
+        circle.setAttribute("fill", "#10b981");
+        circle.setAttribute("stroke", "#34d399");
+        circle.setAttribute("stroke-width", "3");
+      } else {
+        circle.setAttribute("fill", "#059669");
+        circle.setAttribute("stroke", "#475569");
+        circle.setAttribute("stroke-width", "1.5");
+      }
+    } else {
+      circle.setAttribute("fill", n.type === "farm" ? "#3b82f6" : (n.type === "plant" ? "#f59e0b" : "#1e293b"));
+      circle.setAttribute("stroke", "#475569");
+      circle.setAttribute("stroke-width", "1.5");
+    }
+
+    // Node label (Top)
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", 0);
+    text.setAttribute("y", -17);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("class", "node-label");
+    text.textContent = n.name.replace("_", " ");
+
+    // Sublabel (Bottom - Live Dynamic Price)
+    const subtext = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    subtext.setAttribute("x", 0);
+    subtext.setAttribute("y", 22);
+    subtext.setAttribute("text-anchor", "middle");
+    subtext.setAttribute("class", "node-sublabel");
+
+    if (n.type === "mandi") {
+      if (n.glut) {
+        subtext.textContent = `₹${n.price}/q (CRASH 📉)`;
+        subtext.style.fill = "#f87171";
+        subtext.style.fontWeight = "700";
+      } else if (simState.contract.mandiId === n.name) {
+        subtext.textContent = `₹${n.price}/q (TARGET)`;
+        subtext.style.fill = "#34d399";
+        subtext.style.fontWeight = "700";
+      } else {
+        subtext.textContent = `₹${n.price}/q`;
+        subtext.style.fill = "#94a3b8";
+        subtext.style.fontWeight = "600";
+      }
+    } else if (n.type === "plant") {
+      subtext.textContent = `Bid: ₹${n.bidPrice}/q`;
+      subtext.style.fill = "#f59e0b";
+    } else {
+      subtext.textContent = "";
+    }
+
+    g.appendChild(circle);
+    g.appendChild(text);
+    g.appendChild(subtext);
+
+    g.addEventListener('click', () => {
+      openNodeInspector(n.name);
+    });
+
+    nodesGroup.appendChild(g);
+  });
+}
+
 function initRoadMap() {
   const edgesGroup = document.getElementById('roadEdges');
-  const nodesGroup = document.getElementById('roadNodes');
 
   // Roads definition: from, to, length, name
   const roads = [
@@ -504,48 +602,7 @@ function initRoadMap() {
   });
 
   updateRouteHighlights();
-
-  // Render Nodes
-  nodesGroup.innerHTML = '';
-  Object.values(simState.nodes).forEach(n => {
-    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    g.setAttribute("class", "map-node");
-    g.setAttribute("transform", `translate(${n.x}, ${n.y})`);
-
-    // Circle
-    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    circle.setAttribute("r", n.type === "mandi" ? 12 : 8);
-    circle.setAttribute("fill", n.type === "mandi" ? "#10b981" : "#1e293b");
-    circle.setAttribute("stroke", "#475569");
-    circle.setAttribute("stroke-width", "1.5");
-
-    // Node label
-    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    text.setAttribute("x", 0);
-    text.setAttribute("y", -16);
-    text.setAttribute("text-anchor", "middle");
-    text.setAttribute("class", "node-label");
-    text.textContent = n.name.replace("_", " ");
-
-    // Sublabel
-    const subtext = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    subtext.setAttribute("x", 0);
-    subtext.setAttribute("y", 20);
-    subtext.setAttribute("text-anchor", "middle");
-    subtext.setAttribute("class", "node-sublabel");
-    subtext.textContent = n.price ? `₹${n.price}/q` : (n.bidPrice ? `Bid: ₹${n.bidPrice}/q` : "");
-
-    g.appendChild(circle);
-    g.appendChild(text);
-    g.appendChild(subtext);
-
-    g.addEventListener('click', () => {
-      openNodeInspector(n.name);
-    });
-
-    nodesGroup.appendChild(g);
-  });
-
+  renderMapNodes();
   updateTruckPosition();
 }
 
@@ -916,8 +973,15 @@ function injectMandiGlut() {
     document.getElementById('truck1RouteText').textContent = "Farm_Sonipat ➔ Ghazipur";
   }
 
-  // Update Route UI highlights
+  // Update Route UI highlights and re-render dynamic map nodes
   updateRouteHighlights();
+  renderMapNodes();
+
+  // If node inspector is active, refresh it immediately to show price crash
+  const inspCard = document.getElementById('nodeInspectorCard');
+  if (inspCard && !inspCard.classList.contains('hidden')) {
+    openNodeInspector("Mandi_Azadpur");
+  }
 
   // Update Recovery Card
   document.getElementById('recStrategyName').textContent = "DynamicReroutingRecovery (v" + simState.contract.version + ")";
@@ -925,7 +989,7 @@ function injectMandiGlut() {
   document.getElementById('recStatusBadge').style.background = "rgba(16, 185, 129, 0.25)";
   document.getElementById('recStatusBadge').style.color = "#34d399";
   document.getElementById('recActionSummary').textContent = 
-    `Slot cleanly cancelled at Azadpur (Glut: 5/5, Price dropped to ₹1,320). Replacement slot reserved at Ghazipur (Quote: ₹2,100/qtl). Net gain ₹16,500 exceeds hysteresis delta ₹5,000. Old gate slot released; zero leaked resources.`;
+    `Slot cleanly cancelled at Azadpur (Glut: 5/5, Price crashed from ₹2,200 to ₹1,320/qtl). Replacement slot reserved at Ghazipur (Quote: ₹2,100/qtl). Net gain ₹16,500 exceeds hysteresis delta ₹5,000. Old gate slot released; zero leaked resources.`;
 
   speakHinglishAlert("Mandi update: Azadpur mandi me aamad badhne se bhaav gir gaya hai. Truck Ghazipur mandi reroute kiya ja raha hai.");
   logEvent("RECOVERY", "REROUTE", `DynamicReroutingRecovery: Diverted from ${oldMandi} to ${newMandi}. Slot rebound (contract v${simState.contract.version})`);

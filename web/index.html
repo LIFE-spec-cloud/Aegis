@@ -317,43 +317,13 @@
       </div>
     </section>
 
-    <!-- COLUMN 3: Real-Time Fault Injection & 2PC Invariants -->
+    <!-- COLUMN 3: Real-Time Fault Injection -->
     <section class="card controls-card">
       <div class="card-header">
         <div class="card-title-group">
           <span class="badge badge-control">PHASE B1 & B2</span>
-          <h2>Fault Injection & 2PC Auditor</h2>
+          <h2>Fault Injection & 2PC Controls</h2>
         </div>
-        <span class="status-indicator active" id="invariantLed">0 Leaks</span>
-      </div>
-
-      <!-- Zero-Leak Invariant Monitor Panel -->
-      <div class="invariant-monitor-box">
-        <div class="invariant-title-row">
-          <h4>Continuous Zero-Leak Invariant</h4>
-          <span class="badge badge-safe" id="invariantBadge">Passed (0 Leaks)</span>
-        </div>
-        <div class="invariant-stat-row">
-          <div class="inv-stat">
-            <span class="inv-num" id="invTruckLocks">1</span>
-            <span class="inv-desc">Truck Lock</span>
-          </div>
-          <div class="inv-stat">
-            <span class="inv-num" id="invGateSlots">1</span>
-            <span class="inv-desc">Gate Slot</span>
-          </div>
-          <div class="inv-stat">
-            <span class="inv-num" id="invEscrowHolds">1</span>
-            <span class="inv-desc">Escrow Hold</span>
-          </div>
-          <div class="inv-stat">
-            <span class="inv-num" id="invActiveContracts">1</span>
-            <span class="inv-desc">Active 2PC</span>
-          </div>
-        </div>
-        <p class="invariant-formula">
-          Assertion: ∑(Port Locks) = ∑(Non-Terminal Contracts) &amp; Locks(Terminal) = 0
-        </p>
       </div>
 
       <!-- Interactive Fault Injection Buttons -->
@@ -463,6 +433,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=state_machine_v8"></script>
+  <script src="app.js?v=state_machine_v9"></script>
 </body>
 </html>
